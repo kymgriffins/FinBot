@@ -372,16 +372,203 @@ def send_telegram_document(csv_content, filename, caption, chat_id=None):
 # Flask Routes
 @app.route('/')
 def home():
-    return jsonify({
-        "status": "active",
-        "service": "Futures Data Bot",
-        "symbols": os.getenv('SYMBOLS', 'ES=F,NQ=F,YM=F,6E=F,CL=F,GC=F,SI=F'),
-        "endpoints": {
-            "health": "/health",
-            "generate_csv": "/generate-csv",
-            "test_telegram": "/test-telegram"
-        }
-    })
+    symbols = os.getenv('SYMBOLS', 'ES=F,NQ=F,YM=F,6E=F,CL=F,GC=F,SI=F').split(',')
+
+    return f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Futures Data Bot Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .gradient-bg {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }}
+        .card-hover {{
+            transition: all 0.3s ease;
+        }}
+        .card-hover:hover {{
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }}
+        .pulse {{
+            animation: pulse 2s infinite;
+        }}
+        @keyframes pulse {{
+            0% {{ transform: scale(1); }}
+            50% {{ transform: scale(1.05); }}
+            100% {{ transform: scale(1); }}
+        }}
+    </style>
+</head>
+<body class="gradient-bg min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <h1 class="text-4xl md:text-6xl font-bold text-white mb-4">
+                <i class="fas fa-robot mr-4"></i>Futures Data Bot
+            </h1>
+            <p class="text-xl text-white opacity-90">Real-time Market Data & Analytics</p>
+            <div class="inline-flex items-center mt-4 px-4 py-2 bg-green-500 text-white rounded-full pulse">
+                <div class="w-3 h-3 bg-white rounded-full mr-2"></div>
+                <span class="font-semibold">ACTIVE</span>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white rounded-2xl p-6 card-hover">
+                <div class="flex items-center">
+                    <div class="p-3 bg-blue-100 rounded-xl">
+                        <i class="fas fa-chart-line text-blue-600 text-2xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <h3 class="text-sm font-semibold text-gray-500">SYMBOLS TRACKED</h3>
+                        <p class="text-2xl font-bold text-gray-800">{len(symbols)}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 card-hover">
+                <div class="flex items-center">
+                    <div class="p-3 bg-green-100 rounded-xl">
+                        <i class="fas fa-bolt text-green-600 text-2xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <h3 class="text-sm font-semibold text-gray-500">DATA INTERVAL</h3>
+                        <p class="text-2xl font-bold text-gray-800">1 Minute</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 card-hover">
+                <div class="flex items-center">
+                    <div class="p-3 bg-purple-100 rounded-xl">
+                        <i class="fas fa-sync-alt text-purple-600 text-2xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <h3 class="text-sm font-semibold text-gray-500">UPDATE FREQUENCY</h3>
+                        <p class="text-2xl font-bold text-gray-800">Real-time</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Symbols Panel -->
+            <div class="bg-white rounded-2xl p-6 card-hover">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-list-ul mr-3 text-blue-600"></i>Tracked Symbols
+                </h2>
+                <div class="space-y-3">
+                    {"".join([f'''
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center">
+                            <i class="fas fa-chart-bar text-gray-600 mr-3"></i>
+                            <span class="font-semibold">{symbol}</span>
+                        </div>
+                        <span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Active</span>
+                    </div>
+                    ''' for symbol in symbols])}
+                </div>
+            </div>
+
+            <!-- Actions Panel -->
+            <div class="bg-white rounded-2xl p-6 card-hover">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-rocket mr-3 text-green-600"></i>Quick Actions
+                </h2>
+                <div class="space-y-4">
+                    <a href="/generate-csv"
+                       class="w-full flex items-center justify-between p-4 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition-colors">
+                        <div class="flex items-center">
+                            <i class="fas fa-file-csv text-xl mr-3"></i>
+                            <span class="font-semibold">Generate Weekly CSV</span>
+                        </div>
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+
+                    <a href="/test-telegram"
+                       class="w-full flex items-center justify-between p-4 bg-green-50 text-green-700 rounded-xl hover:bg-green-100 transition-colors">
+                        <div class="flex items-center">
+                            <i class="fab fa-telegram text-xl mr-3"></i>
+                            <span class="font-semibold">Test Telegram Bot</span>
+                        </div>
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+
+                    <a href="/health"
+                       class="w-full flex items-center justify-between p-4 bg-purple-50 text-purple-700 rounded-xl hover:bg-purple-100 transition-colors">
+                        <div class="flex items-center">
+                            <i class="fas fa-heartbeat text-xl mr-3"></i>
+                            <span class="font-semibold">System Health</span>
+                        </div>
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Endpoints -->
+        <div class="bg-white rounded-2xl p-6 mt-8 card-hover">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                <i class="fas fa-code mr-3 text-gray-600"></i>API Endpoints
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="border-l-4 border-blue-500 pl-4">
+                    <h3 class="font-semibold text-gray-800">/health</h3>
+                    <p class="text-sm text-gray-600">System status check</p>
+                </div>
+                <div class="border-l-4 border-green-500 pl-4">
+                    <h3 class="font-semibold text-gray-800">/generate-csv</h3>
+                    <p class="text-sm text-gray-600">Create & send weekly data</p>
+                </div>
+                <div class="border-l-4 border-purple-500 pl-4">
+                    <h3 class="font-semibold text-gray-800">/test-telegram</h3>
+                    <p class="text-sm text-gray-600">Test Telegram integration</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-12 text-white opacity-75">
+            <p>Futures Data Bot • Built with Flask • Deployed on Render</p>
+            <p class="text-sm mt-2">
+                <i class="fas fa-clock mr-1"></i>Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Add some interactivity
+        document.addEventListener('DOMContentLoaded', function() {{
+            // Add click animations
+            const cards = document.querySelectorAll('.card-hover');
+            cards.forEach(card => {{
+                card.addEventListener('click', function() {{
+                    this.style.transform = 'scale(0.98)';
+                    setTimeout(() => {{
+                        this.style.transform = '';
+                    }}, 150);
+                }});
+            }});
+
+            // Update time every minute
+            function updateTime() {{
+                const now = new Date();
+                document.querySelector('footer p:last-child').innerHTML =
+                    '<i class="fas fa-clock mr-1"></i>Last updated: ' + now.toLocaleString();
+            }}
+            setInterval(updateTime, 60000);
+        }});
+    </script>
+</body>
+</html>
+    """
 
 @app.route('/health')
 def health():
