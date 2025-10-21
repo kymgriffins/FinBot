@@ -173,3 +173,5 @@ class Config:
 
 # Global configuration instance
 config = Config(Environment(os.getenv('FLASK_ENV', 'development')))
+
+

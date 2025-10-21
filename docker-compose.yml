@@ -1,36 +1,28 @@
 version: '3.8'
 
 services:
-  # FinBot Application
   finbot:
     build: .
     ports:
       - "5000:5000"
     environment:
       - FLASK_ENV=production
-      - DATABASE_HOST=postgres
       - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-here}
+      - FMP_API_KEY=${FMP_API_KEY:-}
+      - TWELVE_DATA_API_KEY=${TWELVE_DATA_API_KEY:-}
     depends_on:
-      - postgres
       - redis
     volumes:
-      - ./logs:/app/logs
+      - ./data:/app/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/ict/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_DB=finbot
-      - POSTGRES_USER=finbot_user
-      - POSTGRES_PASSWORD=finbot_password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    restart: unless-stopped
-
-  # Redis Cache
   redis:
     image: redis:7-alpine
     ports:
@@ -38,41 +30,7 @@ services:
     volumes:
       - redis_data:/data
     restart: unless-stopped
-
-  # Nginx Reverse Proxy
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./ssl:/etc/nginx/ssl
-    depends_on:
-      - finbot
-    restart: unless-stopped
-
-  # Monitoring with Prometheus
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-    restart: unless-stopped
-
-  # Grafana Dashboard
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana_data:/var/lib/grafana
-    restart: unless-stopped
+    command: redis-server --appendonly yes
 
 volumes:
-  postgres_data:
   redis_data:
-  grafana_data:

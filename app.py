@@ -11,6 +11,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 # Load environment variables
 load_dotenv()
 
+# Import configuration
+try:
+    from config import config
+except ImportError:
+    # Fallback configuration if config.py doesn't exist
+    config = {'default': type('Config', (), {
+        'SECRET_KEY': os.environ.get('SECRET_KEY', 'dev-secret-key'),
+        'DEBUG': os.environ.get('FLASK_ENV') == 'development',
+        'CORS_ORIGINS': ['*']
+    })()}
+
 def setup_logging(environment: str = 'development'):
     """Setup logging configuration"""
     log_level = logging.DEBUG if environment == 'development' else logging.INFO
@@ -43,16 +54,17 @@ def create_app(environment: str = None):
                 static_folder='static')
 
     # Configure app
+    config_name = env if env in config else 'default'
+    app.config.from_object(config[config_name])
+
+    # Additional configuration
     app.config.update({
-        'SECRET_KEY': os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production'),
-        'DEBUG': env == 'development',
-        'TESTING': env == 'testing',
         'JSON_SORT_KEYS': False,
         'JSONIFY_PRETTYPRINT_REGULAR': env == 'development'
     })
 
     # Enable CORS
-    CORS(app, origins=['http://localhost:3000', 'http://localhost:5000'])
+    CORS(app, origins=app.config.get('CORS_ORIGINS', ['*']))
 
     # Register error handlers
     register_error_handlers(app)
@@ -137,6 +149,14 @@ def register_blueprints(app, logger):
         from src.routes.daily import daily_bp
         app.register_blueprint(daily_bp, url_prefix='/api/daily')
         logger.info("✅ Daily analysis routes registered")
+
+        # ========== ICT TRADING ROUTES ==========
+        try:
+            from src.routes.ict_routes import ict_trading_bp
+            app.register_blueprint(ict_trading_bp, url_prefix='/api/ict')
+            logger.info("✅ ICT Trading routes registered")
+        except ImportError as e:
+            logger.warning(f"⚠️ ICT Trading routes not available: {e}")
 
         # Optional routes (may not exist)
         try:

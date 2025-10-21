@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block title %}ICT Market Overview - FinBot{% endblock %}
+
+{% block extra_css %}
+<style>
+  .market-card {
+    transition: all 0.3s ease;
+    border: 1px solid #e5e7eb;
+  }
+
+  .market-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+
+  .bullish-market {
+    border-left: 4px solid #10b981;
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.1) 0%, transparent 100%);
+  }
+
+  .bearish-market {
+    border-left: 4px solid #ef4444;
+    background: linear-gradient(90deg, rgba(239, 68, 68, 0.1) 0%, transparent 100%);
+  }
+
+  .neutral-market {
+    border-left: 4px solid #6b7280;
+    background: linear-gradient(90deg, rgba(107, 114, 128, 0.1) 0%, transparent 100%);
+  }
+
+  .level-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+  }
+
+  .level-premium {
+    background-color: #10b981;
+  }
+
+  .level-discount {
+    background-color: #ef4444;
+  }
+
+  .level-fvg {
+    background-color: #3b82f6;
+  }
+
+  .level-liquidity {
+    background-color: #f59e0b;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+  <!-- Header -->
+  <div class="text-center mb-8">
+    <h1 class="text-4xl font-bold text-white mb-4">
+      <i class="fas fa-globe mr-3"></i>ICT Market Overview
+    </h1>
+    <p class="text-xl text-white opacity-90">Multi-symbol ICT analysis and market structure overview</p>
+  </div>
+
+  <!-- Control Panel -->
+  <div class="bg-white rounded-2xl p-6 mb-6 card-hover">
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+      <div class="flex-1">
+        <h2 class="text-2xl font-bold text-gray-800 mb-2">Market Analysis</h2>
+        <p class="text-gray-600">Analyze multiple symbols simultaneously</p>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-3">
+        <select id="symbolsSelect" multiple class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-w-48">
+          <option value="ES=F" selected>ES Futures</option>
+          <option value="NQ=F" selected>NQ Futures</option>
+          <option value="YM=F">YM Futures</option>
+          <option value="CL=F">Crude Oil</option>
+          <option value="GC=F">Gold</option>
+          <option value="EURUSD=X">EUR/USD</option>
+          <option value="GBPUSD=X">GBP/USD</option>
+          <option value="USDJPY=X">USD/JPY</option>
+        </select>
+
+        <input type="date" id="dateSelect"
+          class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          value="{{ datetime.now().strftime('%Y-%m-%d') }}">
+
+        <button onclick="analyzeMarkets()"
+          class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+          <i class="fas fa-chart-line mr-2"></i>Analyze Markets
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div id="loadingState" class="hidden text-center py-12">
+    <i class="fas fa-spinner fa-spin text-3xl text-blue-500 mb-4"></i>
+    <p class="text-gray-600">Analyzing market structure...</p>
+  </div>
+
+  <!-- Market Analysis Results -->
+  <div id="marketResults" class="hidden">
+    <!-- Market Summary -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-blue-50 p-4 rounded-lg">
+        <div class="text-sm text-blue-600">Bullish Markets</div>
+        <div class="text-2xl font-bold text-blue-800" id="bullishCount">-</div>
+      </div>
+      <div class="bg-red-50 p-4 rounded-lg">
+        <div class="text-sm text-red-600">Bearish Markets</div>
+        <div class="text-2xl font-bold text-red-800" id="bearishCount">-</div>
+      </div>
+      <div class="bg-gray-50 p-4 rounded-lg">
+        <div class="text-sm text-gray-600">Neutral Markets</div>
+        <div class="text-2xl font-bold text-gray-800" id="neutralCount">-</div>
+      </div>
+    </div>
+
+    <!-- Individual Market Cards -->
+    <div id="marketCards" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+      <!-- Market cards will be populated here -->
+    </div>
+  </div>
+
+  <!-- Error State -->
+  <div id="errorState" class="hidden text-center py-12">
+    <i class="fas fa-exclamation-triangle text-3xl text-red-500 mb-4"></i>
+    <p class="text-red-600" id="errorMessage">Error loading market analysis</p>
+  </div>
+</div>
+
+<script>
+  // Global variables
+  let currentAnalysis = null;
+
+  // Analyze markets
+  async function analyzeMarkets() {
+    const selectedSymbols = Array.from(document.getElementById('symbolsSelect').selectedOptions)
+      .map(option => option.value);
+    const date = document.getElementById('dateSelect').value;
+
+    if (selectedSymbols.length === 0) {
+      showError('Please select at least one symbol');
+      return;
+    }
+
+    showLoading();
+    hideResults();
+    hideError();
+
+    try {
+      const symbolsParam = selectedSymbols.join(',');
+      const response = await fetch(`/api/ict/market/analysis?symbols=${symbolsParam}&date=${date}`);
+      const data = await response.json();
+
+      if (data.error) {
+        showError(data.error);
+        return;
+      }
+
+      currentAnalysis = data;
+      displayMarketResults(data);
+
+    } catch (error) {
+      showError('Failed to analyze markets: ' + error.message);
+    }
+  }
+
+  // Display market results
+  function displayMarketResults(analysis) {
+    const symbols = Object.keys(analysis);
+    let bullishCount = 0;
+    let bearishCount = 0;
+    let neutralCount = 0;
+
+    // Count market conditions
+    symbols.forEach(symbol => {
+      const condition = analysis[symbol].market_condition;
+      if (condition === 'Bullish') bullishCount++;
+      else if (condition === 'Bearish') bearishCount++;
+      else neutralCount++;
+    });
+
+    // Update summary
+    document.getElementById('bullishCount').textContent = bullishCount;
+    document.getElementById('bearishCount').textContent = bearishCount;
+    document.getElementById('neutralCount').textContent = neutralCount;
+
+    // Display market cards
+    displayMarketCards(analysis);
+
+    hideLoading();
+    showResults();
+  }
+
+  // Display market cards
+  function displayMarketCards(analysis) {
+    const container = document.getElementById('marketCards');
+    
+    container.innerHTML = Object.entries(analysis).map(([symbol, data]) => {
+      if (data.error) {
+        return `
+          <div class="market-card p-6 rounded-lg bg-red-50 border border-red-200">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-xl font-bold text-red-800">${symbol}</h3>
+              <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Error</span>
+            </div>
+            <p class="text-red-600">${data.error}</p>
+          </div>
+        `;
+      }
+
+      const marketClass = getMarketClass(data.market_condition);
+      const levels = getLevelsSummary(data);
+
+      return `
+        <div class="market-card p-6 rounded-lg ${marketClass}">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-gray-800">${symbol}</h3>
+            <span class="px-2 py-1 text-xs rounded-full ${getConditionBadgeClass(data.market_condition)}">
+              ${data.market_condition}
+            </span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <div class="text-sm text-gray-600">High</div>
+              <div class="font-semibold text-gray-800">$${data.daily_high?.toFixed(2) || 'N/A'}</div>
+            </div>
+            <div>
+              <div class="text-sm text-gray-600">Low</div>
+              <div class="font-semibold text-gray-800">$${data.daily_low?.toFixed(2) || 'N/A'}</div>
+            </div>
+            <div>
+              <div class="text-sm text-gray-600">Range</div>
+              <div class="font-semibold text-gray-800">$${data.daily_range?.toFixed(2) || 'N/A'}</div>
+            </div>
+            <div>
+              <div class="text-sm text-gray-600">Bias</div>
+              <div class="font-semibold text-gray-800">${data.daily_bias || 'N/A'}</div>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <div class="text-sm text-gray-600 mb-2">ICT Levels</div>
+            <div class="flex flex-wrap gap-2">
+              ${levels}
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <div class="text-sm text-gray-600 mb-2">Trading Setups</div>
+            <div class="space-y-1">
+              ${data.trading_setups?.slice(0, 3).map(setup => `
+                <div class="text-xs text-gray-700 flex items-center">
+                  <i class="fas fa-lightbulb text-yellow-500 mr-1"></i>
+                  ${setup}
+                </div>
+              `).join('') || '<div class="text-xs text-gray-500">No setups identified</div>'}
+            </div>
+          </div>
+
+          <div class="flex justify-between items-center">
+            <button onclick="analyzeSymbol('${symbol}')" 
+              class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+              <i class="fas fa-chart-line mr-1"></i>Detailed Analysis
+            </button>
+            <span class="text-xs text-gray-500">${data.date}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Get levels summary
+  function getLevelsSummary(data) {
+    const levels = [];
+    
+    if (data.premium_levels?.length > 0) {
+      levels.push(`<span class="level-indicator level-premium"></span>Premium: ${data.premium_levels.length}`);
+    }
+    if (data.discount_levels?.length > 0) {
+      levels.push(`<span class="level-indicator level-discount"></span>Discount: ${data.discount_levels.length}`);
+    }
+    if (data.fvg_levels?.length > 0) {
+      levels.push(`<span class="level-indicator level-fvg"></span>FVG: ${data.fvg_levels.length}`);
+    }
+    if (data.liquidity_levels?.length > 0) {
+      levels.push(`<span class="level-indicator level-liquidity"></span>Liquidity: ${data.liquidity_levels.length}`);
+    }
+
+    return levels.length > 0 ? levels.join(' ') : '<span class="text-xs text-gray-500">No levels</span>';
+  }
+
+  // Analyze individual symbol
+  function analyzeSymbol(symbol) {
+    // Redirect to detailed analysis
+    window.location.href = `/api/ict/analyze/${symbol}`;
+  }
+
+  // Utility functions
+  function getMarketClass(condition) {
+    switch (condition) {
+      case 'Bullish': return 'bullish-market';
+      case 'Bearish': return 'bearish-market';
+      default: return 'neutral-market';
+    }
+  }
+
+  function getConditionBadgeClass(condition) {
+    switch (condition) {
+      case 'Bullish': return 'bg-green-100 text-green-800';
+      case 'Bearish': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  }
+
+  function showLoading() {
+    document.getElementById('loadingState').classList.remove('hidden');
+  }
+
+  function hideLoading() {
+    document.getElementById('loadingState').classList.add('hidden');
+  }
+
+  function showResults() {
+    document.getElementById('marketResults').classList.remove('hidden');
+  }
+
+  function hideResults() {
+    document.getElementById('marketResults').classList.add('hidden');
+  }
+
+  function showError(message) {
+    document.getElementById('errorMessage').textContent = message;
+    document.getElementById('errorState').classList.remove('hidden');
+    hideLoading();
+  }
+
+  function hideError() {
+    document.getElementById('errorState').classList.add('hidden');
+  }
+
+  // Initialize on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    // Auto-analyze selected symbols on page load
+    analyzeMarkets();
+  });
+</script>
+{% endblock %}
