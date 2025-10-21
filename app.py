@@ -111,35 +111,35 @@ def register_blueprints(app, logger):
         # Core web routes
         from src.routes.web import web_bp
         app.register_blueprint(web_bp)
-        logger.info("✅ Web routes registered")
+        logger.info("[OK] Web routes registered")
 
         # API routes
         from src.routes.api import api_bp
         app.register_blueprint(api_bp, url_prefix='/api')
-        logger.info("✅ API routes registered")
+        logger.info("[OK] API routes registered")
 
         # Data routes
         from src.routes.data import data_bp
         app.register_blueprint(data_bp, url_prefix='/api/data')
-        logger.info("✅ Data routes registered")
+        logger.info("[OK] Data routes registered")
 
         # Analysis routes
         from src.routes.weekly_analysis import weekly_analysis_bp
         app.register_blueprint(weekly_analysis_bp, url_prefix='/api/weekly-analysis')
-        logger.info("✅ Weekly analysis routes registered")
+        logger.info("[OK] Weekly analysis routes registered")
 
         from src.routes.ai_weekly import ai_weekly_bp
         app.register_blueprint(ai_weekly_bp, url_prefix='/ai-weekly')
-        logger.info("✅ AI weekly routes registered")
+        logger.info("[OK] AI weekly routes registered")
 
         # Data source routes
         from src.routes.yfinance_routes import yfinance_bp
         app.register_blueprint(yfinance_bp, url_prefix='/api/yfinance')
-        logger.info("✅ YFinance routes registered")
+        logger.info("[OK] YFinance routes registered")
 
         from src.routes.fmp_routes import fmp_bp
         app.register_blueprint(fmp_bp, url_prefix='/api/fmp')
-        logger.info("✅ FMP routes registered")
+        logger.info("[OK] FMP routes registered")
 
         # Utility routes
         from src.routes.comparison_routes import comparison_bp

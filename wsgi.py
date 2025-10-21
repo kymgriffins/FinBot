@@ -19,6 +19,9 @@ from app import create_app
 # Create the Flask application
 application = create_app()
 
+# Create alias for Gunicorn compatibility
+app = application
+
 if __name__ == "__main__":
     # This is for development only
     application.run(host='0.0.0.0', port=5000, debug=False)

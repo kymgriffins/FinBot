@@ -1,0 +1,3 @@
+2025-10-21 19:03:11,745 - src.routes.ict_routes - ERROR - Error adding trade: UNIQUE constraint failed: trading_journal.id
+2025-10-21 19:03:17,323 - src.routes.ict_routes - ERROR - Error adding trade: database is locked
+2025-10-21 19:03:17,324 - src.routes.ict_routes - INFO - Created 3 sample trades for testing
