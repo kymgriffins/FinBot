@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+
+{% block title %}Weekly Market Structure - FinBot{% endblock %}
+
+{% block extra_css %}
+<style>
+  .profile-card {
+    transition: all 0.3s ease;
+  }
+
+  .profile-card:hover {
+    transform: translateY(-2px);
+  }
+
+  .inside-day {
+    border-left: 4px solid #6b7280;
+  }
+
+  .outside-day {
+    border-left: 4px solid #f59e0b;
+  }
+
+  .bullish-engulfing {
+    border-left: 4px solid #10b981;
+  }
+
+  .bearish-engulfing {
+    border-left: 4px solid #ef4444;
+  }
+
+  .gap-up {
+    border-left: 4px solid #22c55e;
+  }
+
+  .gap-down {
+    border-left: 4px solid #dc2626;
+  }
+
+  .doji {
+    border-left: 4px solid #8b5cf6;
+  }
+
+  .liquidity-zone {
+    background: rgba(255, 215, 0, 0.1);
+    border: 1px dashed #f59e0b;
+  }
+
+  .weekly-level {
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px dashed #3b82f6;
+  }
+
+  .predicted-day {
+    opacity: 0.8;
+    background: rgba(249, 250, 251, 0.8);
+  }
+
+  .in-progress-day {
+    border: 2px solid #f59e0b;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="text-center mb-8">
+  <h1 class="text-4xl font-bold text-white mb-4">
+    <i class="fas fa-chart-network mr-3"></i>Weekly Market Structure
+  </h1>
+  <p class="text-xl text-white opacity-90">Institutional Order Flow & Daily Profile Analysis</p>
+</div>
+
+<!-- Control Panel -->
+<div class="bg-white rounded-2xl p-6 mb-6 card-hover">
+  <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+    <div class="flex-1">
+      <h2 class="text-2xl font-bold text-gray-800 mb-2">Market Structure Analysis</h2>
+      <p class="text-gray-600">Analyze daily profiles within weekly context with predictive modeling</p>
+    </div>
+
+    <div class="flex flex-col sm:flex-row gap-3">
+      <select id="symbolSelect" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+        {% for symbol in symbols %}
+        <option value="{{ symbol }}">{{ symbol }}</option>
+        {% endfor %}
+      </select>
+
+      <button onclick="analyzeWeekly()"
+        class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+        <i class="fas fa-chart-line mr-2"></i>Analyze Week
+      </button>
+
+      <button onclick="compareSymbols()"
+        class="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors">
+        <i class="fas fa-balance-scale mr-2"></i>Compare
+      </button>
+    </div>
+  </div>
+
+  <!-- Adapter Status -->
+  <div id="adapterStatus" class="text-sm text-center mt-4">
+    <span class="px-3 py-1 bg-gray-100 rounded-full text-gray-700">
+      <i class="fas fa-database mr-2"></i>Data Source: YFINANCE
+    </span>
+    <div class="flex justify-center gap-2 mt-2">
+      <button onclick="toggleDataAdapter('yfinance')"
+        class="text-xs px-2 py-1 bg-blue-500 text-white rounded">YFinance</button>
+      <button onclick="toggleDataAdapter('fmp')" class="text-xs px-2 py-1 bg-gray-200 rounded">FMP</button>
+      <button onclick="toggleDataAdapter('twelvedata')"
+        class="text-xs px-2 py-1 bg-gray-200 rounded">TwelveData</button>
+    </div>
+  </div>
+</div>
+
+<!-- Weekly Levels Overview -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6" id="weeklyLevels">
+  <!-- Will be populated by JavaScript -->
+</div>
+
+<!-- Daily Profiles Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-6" id="dailyProfiles">
+  <!-- Will be populated by JavaScript -->
+</div>
+
+<!-- Weekly Narrative -->
+<div class="bg-white rounded-2xl p-6 mb-6 card-hover">
+  <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+    <i class="fas fa-book-open mr-3 text-purple-600"></i>Weekly Narrative
+  </h2>
+  <div id="weeklyNarrative">
+    <div class="text-center text-gray-500 py-8">
+      <i class="fas fa-chart-line text-3xl mb-3"></i>
+      <p>Analyze a symbol to see the weekly narrative</p>
+    </div>
+  </div>
+</div>
+
+<!-- Trading Implications -->
+<div class="bg-white rounded-2xl p-6 card-hover">
+  <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+    <i class="fas fa-lightbulb mr-3 text-yellow-600"></i>Trading Implications
+  </h2>
+  <div id="tradingImplications">
+    <div class="text-center text-gray-500 py-8">
+      <i class="fas fa-bullseye text-3xl mb-3"></i>
+      <p>Analysis will reveal key trading levels and setups</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Global variables
+  let currentAnalysis = null;
+  let currentAdapter = 'yfinance';
+
+  // Analyze weekly structure
+  async function analyzeWeekly() {
+    const symbol = document.getElementById('symbolSelect').value;
+    await analyzeWeeklyWithAdapter(symbol, currentAdapter);
+  }
+
+  // Compare multiple symbols
+  async function compareSymbols() {
+    const symbols = ['SPY', 'QQQ', 'AAPL']; // Default comparison
+
+    try {
+      const response = await fetch(`/api/weekly-analysis/compare-multiple?symbols=${symbols.join(',')}`);
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        displayComparison(data.comparisons);
+      } else {
+        showError(data.error);
+      }
+    } catch (error) {
+      showError('Failed to compare symbols');
+    }
+  }
+
+  // Display weekly analysis
+  function displayWeeklyAnalysis(analysis) {
+    displayWeeklyLevels(analysis.weekly_levels);
+    displayDailyProfiles(analysis.daily_profiles);
+    displayWeeklyNarrative(analysis.weekly_summary);
+    displayTradingImplications(analysis.trading_implications);
+  }
+
+  // Enhanced display functions for predictive data
+  function displayWeeklyLevels(levels) {
+    const container = document.getElementById('weeklyLevels');
+
+    const prevWeek = levels.previous_week;
+    const currWeek = levels.current_week;
+    const predictions = levels.predictions;
+
+    container.innerHTML = `
+        <div class="bg-blue-50 p-4 rounded-lg weekly-level">
+            <div class="text-sm text-blue-600">Prev Week Close</div>
+            <div class="text-xl font-bold text-blue-800">$${prevWeek?.close?.toFixed(2) || 'N/A'}</div>
+            <div class="text-xs text-blue-600 mt-1">Current Week Open</div>
+            <div class="text-lg font-semibold text-blue-700">$${currWeek?.open?.toFixed(2) || 'N/A'}</div>
+        </div>
+
+        <div class="bg-green-50 p-4 rounded-lg weekly-level">
+            <div class="text-sm text-green-600">Current High</div>
+            <div class="text-xl font-bold text-green-800">$${currWeek?.high?.toFixed(2) || 'N/A'}</div>
+            ${predictions ? `
+                <div class="text-xs text-green-600 mt-1">Projected High</div>
+                <div class="text-lg font-semibold text-green-700">$${predictions.predicted_high?.toFixed(2)}</div>
+            ` : ''}
+        </div>
+
+        <div class="bg-red-50 p-4 rounded-lg weekly-level">
+            <div class="text-sm text-red-600">Current Low</div>
+            <div class="text-xl font-bold text-red-800">$${currWeek?.low?.toFixed(2) || 'N/A'}</div>
+            ${predictions ? `
+                <div class="text-xs text-red-600 mt-1">Projected Low</div>
+                <div class="text-lg font-semibold text-red-700">$${predictions.predicted_low?.toFixed(2)}</div>
+            ` : ''}
+        </div>
+
+        <div class="bg-purple-50 p-4 rounded-lg weekly-level">
+            <div class="text-sm text-purple-600">Current Price</div>
+            <div class="text-xl font-bold text-purple-800">$${currWeek?.current_price?.toFixed(2) || 'N/A'}</div>
+            ${predictions ? `
+                <div class="text-xs text-purple-600 mt-1">Projected Close</div>
+                <div class="text-lg font-semibold text-purple-700">$${predictions.predicted_close?.toFixed(2)}</div>
+            ` : ''}
+        </div>
+    `;
+  }
+
+  function displayDailyProfiles(profiles) {
+    const container = document.getElementById('dailyProfiles');
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+    container.innerHTML = days.map(day => {
+      const profile = profiles[day];
+      if (!profile) {
+        return `
+                <div class="profile-card bg-gray-50 rounded-lg p-4 text-center">
+                    <div class="text-lg font-semibold text-gray-600">${day}</div>
+                    <div class="text-sm text-gray-500">No data available</div>
+                </div>
+            `;
+      }
+
+      const profileClass = getProfileClass(profile.profile_type);
+      const isPredicted = profile.profile_type.includes('Projected') || profile.profile_type.includes('Pending');
+      const isInProgress = profile.profile_type.includes('In Progress');
+      const additionalClass = isPredicted ? 'predicted-day' : (isInProgress ? 'in-progress-day' : '');
+
+      return `
+            <div class="profile-card bg-white rounded-lg p-4 ${profileClass} ${additionalClass}">
+                <div class="flex justify-between items-start mb-3">
+                    <div class="text-lg font-semibold text-gray-800">${day}</div>
+                    <div class="flex flex-col items-end">
+                        <span class="px-2 py-1 text-xs rounded-full ${getProfileBadgeClass(profile.profile_type)}">
+                            ${profile.profile_type}
+                        </span>
+                        ${isInProgress ? `
+                            <span class="text-xs text-orange-500 mt-1 font-semibold">LIVE</span>
+                        ` : ''}
+                        ${isPredicted ? `
+                            <span class="text-xs text-blue-500 mt-1 font-semibold">PROJECTED</span>
+                        ` : ''}
+                    </div>
+                </div>
+
+                <div class="space-y-2 text-sm">
+                    ${profile.key_levels.open ? `
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Open:</span>
+                            <span class="font-semibold">$${profile.key_levels.open?.toFixed(2)}</span>
+                        </div>
+                    ` : ''}
+
+                    ${profile.key_levels.close ? `
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Close:</span>
+                            <span class="font-semibold">$${profile.key_levels.close?.toFixed(2)}</span>
+                        </div>
+                    ` : ''}
+
+                    ${profile.key_levels.current ? `
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Current:</span>
+                            <span class="font-semibold text-green-600">$${profile.key_levels.current?.toFixed(2)}</span>
+                        </div>
+                    ` : ''}
+
+                    ${profile.key_levels.high && profile.key_levels.low ? `
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Range:</span>
+                            <span class="font-semibold">${(profile.key_levels.high - profile.key_levels.low).toFixed(2)}</span>
+                        </div>
+                    ` : ''}
+                </div>
+
+                <div class="mt-3 pt-3 border-t">
+                    <div class="text-xs text-gray-600 leading-tight">${profile.narrative}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+  }
+
+  function displayWeeklyNarrative(summary) {
+    const container = document.getElementById('weeklyNarrative');
+
+    container.innerHTML = `
+        <div class="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg p-6">
+            <div class="flex items-start">
+                <i class="fas fa-book-open text-2xl mr-4 mt-1"></i>
+                <div>
+                    <h3 class="text-xl font-bold mb-2">Market Story</h3>
+                    <p class="text-blue-100 leading-relaxed">${summary}</p>
+                </div>
+            </div>
+        </div>
+    `;
+  }
+
+  function displayTradingImplications(implications) {
+    const container = document.getElementById('tradingImplications');
+
+    container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${implications.map((imp, index) => `
+                <div class="flex items-start p-4 bg-gray-50 rounded-lg">
+                    <div class="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center mr-3">
+                        ${index + 1}
+                    </div>
+                    <p class="text-gray-700">${imp}</p>
+                </div>
+            `).join('')}
+        </div>
+    `;
+  }
+
+  function displayComparison(comparisons) {
+    // Implementation for multi-symbol comparison
+    console.log('Comparison data:', comparisons);
+    alert('Multi-symbol comparison would be displayed here');
+  }
+
+  // Add adapter toggle function
+  function toggleDataAdapter(adapter) {
+    currentAdapter = adapter;
+    const symbol = document.getElementById('symbolSelect').value;
+    showAdapterStatus(adapter);
+    analyzeWeeklyWithAdapter(symbol, adapter);
+  }
+
+  async function analyzeWeeklyWithAdapter(symbol, adapter) {
+    try {
+      showLoading('dailyProfiles');
+      showLoading('weeklyNarrative');
+      showLoading('tradingImplications');
+
+      const response = await fetch(`/api/weekly-analysis/analyze/${symbol}/${adapter}`);
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        currentAnalysis = data.analysis;
+        displayWeeklyAnalysis(data.analysis);
+      } else {
+        showError(data.error);
+      }
+    } catch (error) {
+      showError('Failed to analyze with ' + adapter);
+    }
+  }
+
+  function showAdapterStatus(adapter) {
+    const statusElement = document.getElementById('adapterStatus');
+    const buttons = statusElement.querySelectorAll('button');
+
+    // Update all buttons to default state
+    buttons.forEach(btn => {
+      btn.className = 'text-xs px-2 py-1 bg-gray-200 rounded';
+    });
+
+    // Highlight active adapter button
+    const activeButton = Array.from(buttons).find(btn =>
+      btn.onclick.toString().includes(`'${adapter}'`)
+    );
+    if (activeButton) {
+      activeButton.className = 'text-xs px-2 py-1 bg-blue-500 text-white rounded';
+    }
+
+    // Update status text
+    const statusSpan = statusElement.querySelector('span');
+    statusSpan.innerHTML = `<i class="fas fa-database mr-2"></i>Data Source: ${adapter.toUpperCase()}`;
+  }
+
+  // Utility functions
+  function getProfileClass(profileType) {
+    const classMap = {
+      'Inside Day': 'inside-day',
+      'Outside Day': 'outside-day',
+      'Bullish Engulfing': 'bullish-engulfing',
+      'Bearish Engulfing': 'bearish-engulfing',
+      'Gap Up': 'gap-up',
+      'Gap Down': 'gap-down',
+      'Doji': 'doji',
+      'Projected': '',
+      'In Progress': '',
+      'Pending': ''
+    };
+    return classMap[profileType] || '';
+  }
+
+  function getProfileBadgeClass(profileType) {
+    const classMap = {
+      'Inside Day': 'bg-gray-100 text-gray-800',
+      'Outside Day': 'bg-yellow-100 text-yellow-800',
+      'Bullish Engulfing': 'bg-green-100 text-green-800',
+      'Bearish Engulfing': 'bg-red-100 text-red-800',
+      'Gap Up': 'bg-green-100 text-green-800',
+      'Gap Down': 'bg-red-100 text-red-800',
+      'Doji': 'bg-purple-100 text-purple-800',
+      'Projected': 'bg-blue-100 text-blue-800',
+      'In Progress': 'bg-orange-100 text-orange-800',
+      'Pending': 'bg-gray-100 text-gray-800'
+    };
+    return classMap[profileType] || 'bg-gray-100 text-gray-800';
+  }
+
+  function showLoading(containerId) {
+    document.getElementById(containerId).innerHTML = `
+        <div class="text-center py-8">
+            <i class="fas fa-spinner fa-spin text-2xl text-blue-500 mb-2"></i>
+            <p>Analyzing market structure...</p>
+        </div>
+    `;
+  }
+
+  function showError(message) {
+    const containers = ['dailyProfiles', 'weeklyNarrative', 'tradingImplications'];
+    containers.forEach(containerId => {
+      document.getElementById(containerId).innerHTML = `
+            <div class="text-center py-8 text-red-500">
+                <i class="fas fa-exclamation-triangle text-2xl mb-2"></i>
+                <p>${message}</p>
+            </div>
+        `;
+    });
+  }
+</script>
+{% endblock %}

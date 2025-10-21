@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}API Documentation - FinBot{% endblock %}
+
+{% block page_title %}API Documentation{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+  <!-- Header -->
+  <div class="text-center mb-12">
+    <h1 class="text-4xl font-bold text-gray-900 mb-4">
+      <i class="fas fa-code mr-3"></i>FinBot API Documentation
+    </h1>
+    <p class="text-xl text-gray-600">Comprehensive guide to FinBot's RESTful API endpoints</p>
+  </div>
+
+  <!-- Quick Navigation -->
+  <div class="card p-6 mb-8">
+    <h2 class="text-2xl font-bold text-gray-900 mb-4">Quick Navigation</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <a href="#ai-weekly" class="btn-secondary text-center">
+        <i class="fas fa-brain mr-2"></i>AI Weekly Analysis
+      </a>
+      <a href="#data-sources" class="btn-secondary text-center">
+        <i class="fas fa-database mr-2"></i>Data Sources
+      </a>
+      <a href="#comparison" class="btn-secondary text-center">
+        <i class="fas fa-balance-scale mr-2"></i>Data Comparison
+      </a>
+    </div>
+  </div>
+
+  <!-- AI Weekly Analysis Section -->
+  <section id="ai-weekly" class="mb-12">
+    <div class="card p-8">
+      <h2 class="text-3xl font-bold text-gray-900 mb-6">
+        <i class="fas fa-brain mr-3 text-purple-600"></i>AI Weekly Analysis
+      </h2>
+
+      <div class="space-y-8">
+        <!-- Analyze Single Symbol -->
+        <div class="border-l-4 border-black pl-6">
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">Analyze Single Symbol</h3>
+          <div class="bg-gray-50 p-4 rounded-lg mb-4">
+            <code class="text-sm">
+                            GET /ai-weekly/analyze/{symbol}?weeks=4
+                        </code>
+          </div>
+
+          <h4 class="font-semibold text-gray-900 mb-2">Parameters:</h4>
+          <ul class="list-disc list-inside text-gray-700 mb-4">
+            <li><strong>symbol</strong> (string): Stock symbol (e.g., SPY, AAPL, TSLA)</li>
+            <li><strong>weeks</strong> (int, optional): Number of weeks to analyze (default: 4)</li>
+          </ul>
+
+          <h4 class="font-semibold text-gray-900 mb-2">Response:</h4>
+          <div class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto">
+            <pre><code>{
+  "status": "success",
+  "symbol": "SPY",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "market_structure": {
+    "current_price": 485.67,
+    "weekly_high": 487.23,
+    "weekly_low": 482.15,
+    "market_phase": "trend",
+    "volatility": 0.15,
+    "trend": {
+      "direction": "bullish",
+      "strength": 0.8
+    }
+  },
+  "daily_profiles": [...],
+  "narrative": "Market is in a strong bullish trend...",
+  "insights": [
+    "Strong bullish trend - consider long positions...",
+    "Accumulation phase - watch for breakout..."
+  ],
+  "predictions": {
+    "confidence": 0.75,
+    "scenarios": [...]
+  }
+}</code></pre>
+          </div>
+        </div>
+
+        <!-- Compare Multiple Symbols -->
+        <div class="border-l-4 border-black pl-6">
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">Compare Multiple Symbols</h3>
+          <div class="bg-gray-50 p-4 rounded-lg mb-4">
+            <code class="text-sm">
+                            GET /ai-weekly/compare?symbols=SPY,QQQ,AAPL
+                        </code>
+          </div>
+
+          <h4 class="font-semibold text-gray-900 mb-2">Parameters:</h4>
+          <ul class="list-disc list-inside text-gray-700 mb-4">
+            <li><strong>symbols</strong> (string): Comma-separated list of symbols</li>
+          </ul>
+        </div>
+
+        <!-- Health Check -->
+        <div class="border-l-4 border-black pl-6">
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">Health Check</h3>
+          <div class="bg-gray-50 p-4 rounded-lg mb-4">
+            <code class="text-sm">
+                            GET /ai-weekly/health
+                        </code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Data Sources Section -->
+  <section id="data-sources" class="mb-12">
+    <div class="card p-8">
+      <h2 class="text-3xl font-bold text-gray-900 mb-6">
+        <i class="fas fa-database mr-3 text-blue-600"></i>Data Sources
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <!-- YFinance -->
+        <div class="border border-gray-200 rounded-lg p-6">
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">
+            <i class="fab fa-yahoo mr-2"></i>YFinance
+          </h3>
+          <p class="text-gray-600 mb-4">Free Yahoo Finance data with no API key required</p>
+          <div class="space-y-2">
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-600">Rate Limits:</span>
+              <span class="text-sm font-semibold">Moderate</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-600">Reliability:</span>
+              <span class="text-sm font-semibold text-green-600">High</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-600">Cost:</span>
+              <span class="text-sm font-semibold text-green-600">Free</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Financial Modeling Prep -->
+        <div class="border border-gray-200 rounded-lg p-6">
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">
+            <i class="fas fa-chart-line mr-2"></i>Financial Modeling Prep
+          </h3>
+          <p class="text-gray-600 mb-4">Professional financial data with API key</p>
+          <div class="space-y-2">
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-600">Rate Limits:</span>
+              <span class="text-sm font-semibold">Generous</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-600">Reliability:</span>
+              <span class="text-sm font-semibold text-green-600">High</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-600">Cost:</span>
+              <span class="text-sm font-semibold text-yellow-600">Paid</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Data Comparison Section -->
+  <section id="comparison" class="mb-12">
+    <div class="card p-8">
+      <h2 class="text-3xl font-bold text-gray-900 mb-6">
+        <i class="fas fa-balance-scale mr-3 text-green-600"></i>Data Comparison
+      </h2>
+
+      <div class="space-y-6">
+        <div class="border-l-4 border-black pl-6">
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">Compare Data Sources</h3>
+          <div class="bg-gray-50 p-4 rounded-lg mb-4">
+            <code class="text-sm">
+                            GET /api/comparison/compare?symbol=SPY&sources=yfinance,fmp
+                        </code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Error Codes -->
+  <section id="error-codes" class="mb-12">
+    <div class="card p-8">
+      <h2 class="text-3xl font-bold text-gray-900 mb-6">
+        <i class="fas fa-exclamation-triangle mr-3 text-red-600"></i>Error Codes
+      </h2>
+
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse border border-gray-300">
+          <thead>
+            <tr class="bg-gray-50">
+              <th class="border border-gray-300 px-4 py-2 text-left">Code</th>
+              <th class="border border-gray-300 px-4 py-2 text-left">Description</th>
+              <th class="border border-gray-300 px-4 py-2 text-left">Solution</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="border border-gray-300 px-4 py-2 font-mono">400</td>
+              <td class="border border-gray-300 px-4 py-2">Bad Request</td>
+              <td class="border border-gray-300 px-4 py-2">Check request parameters</td>
+            </tr>
+            <tr>
+              <td class="border border-gray-300 px-4 py-2 font-mono">404</td>
+              <td class="border border-gray-300 px-4 py-2">Not Found</td>
+              <td class="border border-gray-300 px-4 py-2">Verify symbol exists</td>
+            </tr>
+            <tr>
+              <td class="border border-gray-300 px-4 py-2 font-mono">500</td>
+              <td class="border border-gray-300 px-4 py-2">Internal Server Error</td>
+              <td class="border border-gray-300 px-4 py-2">Contact support</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Rate Limits -->
+  <section id="rate-limits" class="mb-12">
+    <div class="card p-8">
+      <h2 class="text-3xl font-bold text-gray-900 mb-6">
+        <i class="fas fa-tachometer-alt mr-3 text-orange-600"></i>Rate Limits
+      </h2>
+
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+        <div class="flex items-center">
+          <i class="fas fa-info-circle text-yellow-600 mr-2"></i>
+          <span class="text-yellow-800 font-semibold">Rate Limit Information</span>
+        </div>
+        <p class="text-yellow-700 mt-2">
+          API calls are limited to 100 requests per minute per IP address.
+          Exceeding this limit will result in a 429 status code.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="text-center">
+          <div class="text-3xl font-bold text-gray-900">100</div>
+          <div class="text-gray-600">Requests per minute</div>
+        </div>
+        <div class="text-center">
+          <div class="text-3xl font-bold text-gray-900">1,440</div>
+          <div class="text-gray-600">Requests per day</div>
+        </div>
+        <div class="text-center">
+          <div class="text-3xl font-bold text-gray-900">10,080</div>
+          <div class="text-gray-600">Requests per week</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Getting Started -->
+  <section id="getting-started" class="mb-12">
+    <div class="card p-8">
+      <h2 class="text-3xl font-bold text-gray-900 mb-6">
+        <i class="fas fa-rocket mr-3 text-purple-600"></i>Getting Started
+      </h2>
+
+      <div class="space-y-6">
+        <div class="border-l-4 border-black pl-6">
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">1. Basic Analysis</h3>
+          <div class="bg-gray-900 text-white p-4 rounded-lg">
+            <pre><code>curl -X GET "http://localhost:5000/ai-weekly/analyze/SPY"</code></pre>
+          </div>
+        </div>
+
+        <div class="border-l-4 border-black pl-6">
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">2. With Parameters</h3>
+          <div class="bg-gray-900 text-white p-4 rounded-lg">
+            <pre><code>curl -X GET "http://localhost:5000/ai-weekly/analyze/AAPL?weeks=8"</code></pre>
+          </div>
+        </div>
+
+        <div class="border-l-4 border-black pl-6">
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">3. Compare Symbols</h3>
+          <div class="bg-gray-900 text-white p-4 rounded-lg">
+            <pre><code>curl -X GET "http://localhost:5000/ai-weekly/compare?symbols=SPY,QQQ,AAPL"</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

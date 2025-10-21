@@ -1,0 +1,718 @@
+{% extends "base.html" %}
+
+{% block title %}Data Comparison - FinBot{% endblock %}
+
+{% block extra_css %}
+<style>
+  .data-source-card {
+    transition: all 0.3s ease;
+  }
+
+  .data-source-card:hover {
+    transform: translateY(-2px);
+  }
+
+  .refresh-btn {
+    transition: all 0.3s ease;
+  }
+
+  .refresh-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .refresh-btn.loading {
+    background: #6b7280 !important;
+  }
+
+  .data-point {
+    border-left: 4px solid transparent;
+    padding-left: 12px;
+  }
+
+  .data-point.match {
+    border-left-color: #10b981;
+  }
+
+  .data-point.mismatch {
+    border-left-color: #ef4444;
+  }
+
+  .data-point.partial {
+    border-left-color: #f59e0b;
+  }
+
+  .price-difference {
+    font-size: 0.8em;
+    padding: 2px 6px;
+    border-radius: 8px;
+  }
+
+  .diff-positive {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .diff-negative {
+    background: #fecaca;
+    color: #991b1b;
+  }
+
+  .diff-neutral {
+    background: #f3f4f6;
+    color: #374151;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="text-center mb-8">
+  <h1 class="text-4xl font-bold text-white mb-4">
+    <i class="fas fa-balance-scale mr-3"></i>Data Source Comparison
+  </h1>
+  <p class="text-xl text-white opacity-90">Compare multiple data sources in real-time</p>
+</div>
+
+<!-- Control Panel -->
+<div class="bg-white rounded-2xl p-6 mb-6 card-hover">
+  <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+    <div class="flex-1">
+      <h2 class="text-2xl font-bold text-gray-800 mb-2">Comparison Controls</h2>
+      <p class="text-gray-600">Compare data from multiple sources for accuracy</p>
+    </div>
+
+    <div class="flex flex-col sm:flex-row gap-3">
+      <!-- Symbol Input -->
+      <div class="relative">
+        <input type="text" id="comparisonSymbol" placeholder="Enter symbol (e.g., AAPL)"
+          class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-40">
+        <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+      </div>
+
+      <!-- Data Type Selector -->
+      <select id="dataType" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+        <option value="quote">Current Quote</option>
+        <option value="historical">Historical Data</option>
+        <option value="financials">Financial Data</option>
+      </select>
+
+      <!-- Refresh Button -->
+      <button id="refreshData" onclick="refreshAllData()"
+        class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors refresh-btn flex items-center">
+        <i class="fas fa-sync-alt mr-2"></i>
+        <span>Refresh Data</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Quick Symbols -->
+  <div class="mt-4 pt-4 border-t">
+    <p class="text-sm font-medium text-gray-700 mb-2">Quick Symbols:</p>
+    <div class="flex flex-wrap gap-2">
+      <button onclick="setComparisonSymbol('AAPL')"
+        class="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm">AAPL</button>
+      <button onclick="setComparisonSymbol('TSLA')"
+        class="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm">TSLA</button>
+      <button onclick="setComparisonSymbol('SPY')"
+        class="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm">SPY</button>
+      <button onclick="setComparisonSymbol('BTC-USD')"
+        class="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm">BTC</button>
+      <button onclick="setComparisonSymbol('GC=F')"
+        class="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm">Gold</button>
+      <button onclick="setComparisonSymbol('CL=F')"
+        class="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm">Oil</button>
+    </div>
+  </div>
+</div>
+
+<!-- Data Sources Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+  <!-- yFinance Card -->
+  <div class="data-source-card bg-white rounded-2xl p-6">
+    <div class="flex justify-between items-start mb-4">
+      <div>
+        <h3 class="text-xl font-bold text-gray-800 flex items-center">
+          <i class="fab fa-yahoo text-purple-600 mr-2"></i>
+          yFinance
+        </h3>
+        <p class="text-sm text-gray-600">Free Yahoo Finance data</p>
+      </div>
+      <div class="flex items-center space-x-2">
+        <span id="yfinanceStatus" class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Ready</span>
+        <button onclick="refreshSource('yfinance')" class="text-gray-400 hover:text-blue-500 refresh-source"
+          data-source="yfinance">
+          <i class="fas fa-sync-alt"></i>
+        </button>
+      </div>
+    </div>
+    <div id="yfinanceData" class="min-h-200">
+      <div class="text-center text-gray-500 py-8">
+        <i class="fas fa-chart-line text-2xl mb-2"></i>
+        <p>Enter symbol to load data</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- FMP Card -->
+  <div class="data-source-card bg-white rounded-2xl p-6">
+    <div class="flex justify-between items-start mb-4">
+      <div>
+        <h3 class="text-xl font-bold text-gray-800 flex items-center">
+          <i class="fas fa-chart-bar text-blue-600 mr-2"></i>
+          Financial Modeling Prep
+        </h3>
+        <p class="text-sm text-gray-600">Professional financial data</p>
+      </div>
+      <div class="flex items-center space-x-2">
+        <span id="fmpStatus" class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Ready</span>
+        <button onclick="refreshSource('fmp')" class="text-gray-400 hover:text-blue-500 refresh-source"
+          data-source="fmp">
+          <i class="fas fa-sync-alt"></i>
+        </button>
+      </div>
+    </div>
+    <div id="fmpData" class="min-h-200">
+      <div class="text-center text-gray-500 py-8">
+        <i class="fas fa-chart-bar text-2xl mb-2"></i>
+        <p>Enter symbol to load data</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Broker Data Card -->
+  <div class="data-source-card bg-white rounded-2xl p-6">
+    <div class="flex justify-between items-start mb-4">
+      <div>
+        <h3 class="text-xl font-bold text-gray-800 flex items-center">
+          <i class="fas fa-broadcast-tower text-green-600 mr-2"></i>
+          Broker Data
+        </h3>
+        <p class="text-sm text-gray-600">Live broker feeds</p>
+      </div>
+      <div class="flex items-center space-x-2">
+        <span id="brokerStatus" class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Ready</span>
+        <button onclick="refreshSource('broker')" class="text-gray-400 hover:text-blue-500 refresh-source"
+          data-source="broker">
+          <i class="fas fa-sync-alt"></i>
+        </button>
+      </div>
+    </div>
+    <div id="brokerData" class="min-h-200">
+      <div class="text-center text-gray-500 py-8">
+        <i class="fas fa-broadcast-tower text-2xl mb-2"></i>
+        <p>Enter symbol to load data</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Comparison Summary -->
+<div class="bg-white rounded-2xl p-6 card-hover">
+  <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+    <i class="fas fa-balance-scale-left mr-3 text-orange-600"></i>Data Comparison Summary
+  </h2>
+  <div id="comparisonSummary">
+    <div class="text-center text-gray-500 py-8">
+      <i class="fas fa-scale-balanced text-3xl mb-3"></i>
+      <p>Load data from all sources to see comparison</p>
+    </div>
+  </div>
+</div>
+
+<!-- Data Storage Info -->
+<div class="bg-white rounded-2xl p-6 mt-6 card-hover">
+  <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+    <i class="fas fa-database mr-3 text-gray-600"></i>Local Storage
+  </h2>
+  <div class="flex justify-between items-center">
+    <div>
+      <p class="text-gray-600">Data is cached locally to reduce API calls</p>
+      <p class="text-sm text-gray-500" id="storageInfo">No data stored yet</p>
+    </div>
+    <div class="flex space-x-2">
+      <button onclick="clearLocalStorage()" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">
+        <i class="fas fa-trash mr-2"></i>Clear Cache
+      </button>
+      <button onclick="exportData()" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">
+        <i class="fas fa-download mr-2"></i>Export Data
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Global variables
+  let currentSymbol = '';
+  let currentDataType = 'quote';
+  let refreshInProgress = false;
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  // Initialize dashboard
+  document.addEventListener('DOMContentLoaded', function () {
+    loadStoredSymbol();
+    updateStorageInfo();
+
+    // Load data if symbol exists in storage
+    if (currentSymbol) {
+      loadAllData();
+    }
+  });
+
+  // Utility functions
+  function setComparisonSymbol(symbol) {
+    document.getElementById('comparisonSymbol').value = symbol;
+    currentSymbol = symbol;
+    saveStoredSymbol(symbol);
+    loadAllData();
+  }
+
+  function saveStoredSymbol(symbol) {
+    localStorage.setItem('lastComparisonSymbol', symbol);
+  }
+
+  function loadStoredSymbol() {
+    const stored = localStorage.getItem('lastComparisonSymbol');
+    if (stored) {
+      document.getElementById('comparisonSymbol').value = stored;
+      currentSymbol = stored;
+    }
+  }
+
+  function getStorageKey(source, symbol, dataType) {
+    return `finbot_${source}_${symbol}_${dataType}`;
+  }
+
+  function getCachedData(source, symbol, dataType) {
+    const key = getStorageKey(source, symbol, dataType);
+    const cached = localStorage.getItem(key);
+
+    if (cached) {
+      const data = JSON.parse(cached);
+      // Check if cache is still valid
+      if (Date.now() - data.timestamp < CACHE_DURATION) {
+        return data;
+      } else {
+        // Remove expired cache
+        localStorage.removeItem(key);
+      }
+    }
+    return null;
+  }
+
+  function cacheData(source, symbol, dataType, data) {
+    const key = getStorageKey(source, symbol, dataType);
+    const cacheData = {
+      data: data,
+      timestamp: Date.now(),
+      source: source,
+      symbol: symbol,
+      dataType: dataType
+    };
+    localStorage.setItem(key, JSON.stringify(cacheData));
+    updateStorageInfo();
+  }
+
+  function updateStorageInfo() {
+    let storedItems = 0;
+    let totalSize = 0;
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('finbot_')) {
+        storedItems++;
+        totalSize += localStorage.getItem(key).length;
+      }
+    }
+
+    const sizeKB = (totalSize / 1024).toFixed(2);
+    document.getElementById('storageInfo').textContent =
+      `${storedItems} items cached • ${sizeKB} KB used`;
+  }
+
+  function clearLocalStorage() {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('finbot_')) {
+        keysToRemove.push(key);
+      }
+    }
+
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    localStorage.removeItem('lastComparisonSymbol');
+    updateStorageInfo();
+
+    // Clear displays
+    ['yfinance', 'fmp', 'broker'].forEach(source => {
+      document.getElementById(`${source}Data`).innerHTML = `
+            <div class="text-center text-gray-500 py-8">
+                <i class="fas fa-chart-line text-2xl mb-2"></i>
+                <p>Cache cleared</p>
+            </div>
+        `;
+    });
+
+    document.getElementById('comparisonSummary').innerHTML = `
+        <div class="text-center text-gray-500 py-8">
+            <i class="fas fa-scale-balanced text-3xl mb-3"></i>
+            <p>Cache cleared</p>
+        </div>
+    `;
+  }
+
+  // Main data loading functions
+  async function refreshAllData() {
+    if (refreshInProgress) return;
+
+    const symbol = document.getElementById('comparisonSymbol').value.trim();
+    const dataType = document.getElementById('dataType').value;
+
+    if (!symbol) {
+      alert('Please enter a symbol');
+      return;
+    }
+
+    currentSymbol = symbol;
+    currentDataType = dataType;
+    saveStoredSymbol(symbol);
+
+    refreshInProgress = true;
+    setRefreshButtonState(true);
+
+    try {
+      await Promise.all([
+        loadSourceData('yfinance', symbol, dataType),
+        loadSourceData('fmp', symbol, dataType),
+        loadSourceData('broker', symbol, dataType)
+      ]);
+
+      updateComparisonSummary();
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      refreshInProgress = false;
+      setRefreshButtonState(false);
+    }
+  }
+
+  async function refreshSource(source) {
+    if (!currentSymbol) {
+      alert('Please enter a symbol first');
+      return;
+    }
+
+    const button = document.querySelector(`.refresh-source[data-source="${source}"]`);
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    button.disabled = true;
+
+    try {
+      await loadSourceData(source, currentSymbol, currentDataType, true); // Force refresh
+      updateComparisonSummary();
+    } catch (error) {
+      console.error(`Error refreshing ${source}:`, error);
+    } finally {
+      button.innerHTML = '<i class="fas fa-sync-alt"></i>';
+      button.disabled = false;
+    }
+  }
+
+  async function loadAllData() {
+    if (!currentSymbol) return;
+
+    const dataType = document.getElementById('dataType').value;
+
+    await Promise.all([
+      loadSourceData('yfinance', currentSymbol, dataType),
+      loadSourceData('fmp', currentSymbol, dataType),
+      loadSourceData('broker', currentSymbol, dataType)
+    ]);
+
+    updateComparisonSummary();
+  }
+
+  async function loadSourceData(source, symbol, dataType, forceRefresh = false) {
+    const statusElement = document.getElementById(`${source}Status`);
+    const dataElement = document.getElementById(`${source}Data`);
+
+    try {
+      // Check cache first (unless force refresh)
+      if (!forceRefresh) {
+        const cached = getCachedData(source, symbol, dataType);
+        if (cached) {
+          displaySourceData(source, cached.data, symbol, dataType);
+          statusElement.className = 'px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full';
+          statusElement.textContent = 'Cached';
+          return;
+        }
+      }
+
+      statusElement.className = 'px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full';
+      statusElement.textContent = 'Loading...';
+
+      let endpoint = '';
+      switch (source) {
+        case 'yfinance':
+          endpoint = `/api/yfinance/quote/${symbol}`;
+          break;
+        case 'fmp':
+          endpoint = `/api/fmp/financials/${symbol}?type=income`;
+          break;
+        case 'broker':
+          endpoint = `/api/broker/quote/${symbol}`;
+          break;
+      }
+
+      const response = await fetch(endpoint);
+      const result = await response.json();
+
+      if (result.status === 'success') {
+        // Cache the successful response
+        cacheData(source, symbol, dataType, result);
+        displaySourceData(source, result, symbol, dataType);
+        statusElement.className = 'px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full';
+        statusElement.textContent = 'Live';
+      } else {
+        throw new Error(result.error || 'Failed to load data');
+      }
+
+    } catch (error) {
+      console.error(`Error loading ${source} data:`, error);
+      dataElement.innerHTML = `
+            <div class="text-center text-red-500 py-8">
+                <i class="fas fa-exclamation-triangle text-2xl mb-2"></i>
+                <p>Failed to load data</p>
+                <p class="text-sm">${error.message}</p>
+            </div>
+        `;
+      statusElement.className = 'px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full';
+      statusElement.textContent = 'Error';
+    }
+  }
+
+  function displaySourceData(source, data, symbol, dataType) {
+    const container = document.getElementById(`${source}Data`);
+
+    if (dataType === 'quote') {
+      displayQuoteData(source, data, container);
+    } else if (dataType === 'historical') {
+      displayHistoricalData(source, data, container);
+    } else {
+      displayFinancialData(source, data, container);
+    }
+  }
+
+  function displayQuoteData(source, data, container) {
+    const quote = data.quote || data;
+
+    container.innerHTML = `
+        <div class="space-y-3">
+            <div class="text-center p-4 bg-gray-50 rounded-lg">
+                <div class="text-2xl font-bold text-gray-800">$${quote.currentPrice || quote.price || 'N/A'}</div>
+                <div class="text-sm text-gray-600">Current Price</div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-sm">
+                <div class="data-point">
+                    <div class="text-gray-600">Change</div>
+                    <div class="font-semibold">${quote.change || 'N/A'}</div>
+                </div>
+                <div class="data-point">
+                    <div class="text-gray-600">Volume</div>
+                    <div class="font-semibold">${formatNumber(quote.volume) || 'N/A'}</div>
+                </div>
+                <div class="data-point">
+                    <div class="text-gray-600">Open</div>
+                    <div class="font-semibold">$${quote.open || 'N/A'}</div>
+                </div>
+                <div class="data-point">
+                    <div class="text-gray-600">Previous Close</div>
+                    <div class="font-semibold">$${quote.previousClose || 'N/A'}</div>
+                </div>
+            </div>
+
+            <div class="text-xs text-gray-500 text-center mt-2">
+                Source: ${source} • ${new Date().toLocaleTimeString()}
+            </div>
+        </div>
+    `;
+  }
+
+  function displayHistoricalData(source, data, container) {
+    const historical = data.historical || [];
+
+    if (!historical || historical.length === 0) {
+      container.innerHTML = '<div class="text-center text-gray-500 py-4">No historical data</div>';
+      return;
+    }
+
+    const recent = historical.slice(-3); // Show last 3 periods
+
+    container.innerHTML = `
+        <div class="space-y-2">
+            <div class="text-sm font-semibold text-gray-700 mb-2">Recent Data:</div>
+            ${recent.map(item => `
+                <div class="flex justify-between items-center p-2 bg-gray-50 rounded text-sm">
+                    <span>${item.date || 'N/A'}</span>
+                    <span class="font-semibold">$${item.close || 'N/A'}</span>
+                </div>
+            `).join('')}
+            <div class="text-xs text-gray-500 text-center mt-2">
+                Showing ${recent.length} of ${historical.length} records
+            </div>
+        </div>
+    `;
+  }
+
+  function displayFinancialData(source, data, container) {
+    const financials = data.data || data;
+
+    if (!financials || financials.length === 0) {
+      container.innerHTML = '<div class="text-center text-gray-500 py-4">No financial data</div>';
+      return;
+    }
+
+    const latest = financials[0];
+
+    container.innerHTML = `
+        <div class="space-y-2">
+            <div class="text-sm font-semibold text-gray-700 mb-2">Latest Period:</div>
+            ${Object.entries(latest).slice(0, 5).map(([key, value]) => `
+                <div class="flex justify-between items-center p-2 bg-gray-50 rounded text-sm">
+                    <span class="truncate">${formatKey(key)}</span>
+                    <span class="font-semibold">${formatFinancialValue(value)}</span>
+                </div>
+            `).join('')}
+            <div class="text-xs text-gray-500 text-center mt-2">
+                ${Object.keys(latest).length} data points
+            </div>
+        </div>
+    `;
+  }
+
+  function updateComparisonSummary() {
+    const summaryContainer = document.getElementById('comparisonSummary');
+
+    // Collect all current prices from different sources
+    const prices = {};
+    const sources = ['yfinance', 'fmp', 'broker'];
+
+    sources.forEach(source => {
+      const container = document.getElementById(`${source}Data`);
+      const priceElement = container.querySelector('.text-2xl.font-bold');
+      if (priceElement) {
+        const priceText = priceElement.textContent.replace('$', '');
+        const price = parseFloat(priceText);
+        if (!isNaN(price)) {
+          prices[source] = price;
+        }
+      }
+    });
+
+    if (Object.keys(prices).length === 0) {
+      summaryContainer.innerHTML = '<div class="text-center text-gray-500 py-4">No price data to compare</div>';
+      return;
+    }
+
+    const priceValues = Object.values(prices);
+    const avgPrice = priceValues.reduce((a, b) => a + b, 0) / priceValues.length;
+    const maxPrice = Math.max(...priceValues);
+    const minPrice = Math.min(...priceValues);
+    const priceRange = ((maxPrice - minPrice) / avgPrice * 100).toFixed(2);
+
+    summaryContainer.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div class="text-center p-4 bg-green-50 rounded-lg">
+                <div class="text-xl font-bold text-green-800">$${avgPrice.toFixed(2)}</div>
+                <div class="text-sm text-green-600">Average Price</div>
+            </div>
+            <div class="text-center p-4 bg-blue-50 rounded-lg">
+                <div class="text-xl font-bold text-blue-800">${priceRange}%</div>
+                <div class="text-sm text-blue-600">Price Range</div>
+            </div>
+            <div class="text-center p-4 bg-purple-50 rounded-lg">
+                <div class="text-xl font-bold text-purple-800">${Object.keys(prices).length}</div>
+                <div class="text-sm text-purple-600">Sources Active</div>
+            </div>
+        </div>
+
+        <div class="space-y-2">
+            <div class="text-sm font-semibold text-gray-700">Price Comparison:</div>
+            ${Object.entries(prices).map(([source, price]) => {
+      const diff = ((price - avgPrice) / avgPrice * 100).toFixed(2);
+      const diffClass = Math.abs(diff) < 0.1 ? 'diff-neutral' :
+        diff > 0 ? 'diff-positive' : 'diff-negative';
+      return `
+                    <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                        <span class="font-medium capitalize">${source}</span>
+                        <div class="flex items-center space-x-2">
+                            <span class="font-semibold">$${price.toFixed(2)}</span>
+                            <span class="price-difference ${diffClass}">
+                                ${diff > 0 ? '+' : ''}${diff}%
+                            </span>
+                        </div>
+                    </div>
+                `;
+    }).join('')}
+        </div>
+    `;
+  }
+
+  // Utility functions
+  function formatNumber(num) {
+    if (!num) return 'N/A';
+    if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B';
+    if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M';
+    if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
+    return num.toString();
+  }
+
+  function formatKey(key) {
+    return key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+  }
+
+  function formatFinancialValue(value) {
+    if (typeof value === 'number') {
+      if (Math.abs(value) >= 1e9) return '$' + (value / 1e9).toFixed(1) + 'B';
+      if (Math.abs(value) >= 1e6) return '$' + (value / 1e6).toFixed(1) + 'M';
+      return '$' + value.toFixed(0);
+    }
+    return value || 'N/A';
+  }
+
+  function setRefreshButtonState(loading) {
+    const button = document.getElementById('refreshData');
+    if (loading) {
+      button.disabled = true;
+      button.classList.add('loading');
+      button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><span>Refreshing...</span>';
+    } else {
+      button.disabled = false;
+      button.classList.remove('loading');
+      button.innerHTML = '<i class="fas fa-sync-alt mr-2"></i><span>Refresh Data</span>';
+    }
+  }
+
+  function exportData() {
+    const exportData = {};
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('finbot_')) {
+        exportData[key] = JSON.parse(localStorage.getItem(key));
+      }
+    }
+
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `finbot_comparison_data_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+</script>
+{% endblock %}

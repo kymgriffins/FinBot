@@ -1,58 +1,172 @@
 import os
+import sys
 import logging
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 from dotenv import load_dotenv
+
+# Add src directory to Python path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 # Load environment variables
 load_dotenv()
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
+def setup_logging(environment: str = 'development'):
+    """Setup logging configuration"""
+    log_level = logging.DEBUG if environment == 'development' else logging.INFO
 
-def create_app():
-    """Application factory pattern"""
-    # Absolute path to templates
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    template_path = os.path.join(current_dir, 'templates')
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler('finbot.log') if environment == 'production' else logging.NullHandler()
+        ]
+    )
 
-    print(f"🔍 Looking for templates in: {template_path}")
-    print(f"📁 Directory exists: {os.path.exists(template_path)}")
+    # Suppress noisy loggers
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
+    logging.getLogger('requests').setLevel(logging.WARNING)
 
-    if os.path.exists(template_path):
-        templates = os.listdir(template_path)
-        print(f"📄 Available templates: {templates}")
-    else:
-        print("❌ Templates directory not found!")
-        # Create templates directory if it doesn't exist
-        os.makedirs(template_path, exist_ok=True)
-        print("✅ Created templates directory")
+def create_app(environment: str = None):
+    """Enhanced application factory pattern"""
+    # Determine environment
+    env = environment or os.getenv('FLASK_ENV', 'development')
 
-    app = Flask(__name__, template_folder=template_path)
+    # Setup logging
+    setup_logging(env)
+    logger = logging.getLogger(__name__)
+
+    # Create Flask app
+    app = Flask(__name__,
+                template_folder='templates',
+                static_folder='static')
+
+    # Configure app
+    app.config.update({
+        'SECRET_KEY': os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production'),
+        'DEBUG': env == 'development',
+        'TESTING': env == 'testing',
+        'JSON_SORT_KEYS': False,
+        'JSONIFY_PRETTYPRINT_REGULAR': env == 'development'
+    })
+
+    # Enable CORS
+    CORS(app, origins=['http://localhost:3000', 'http://localhost:5000'])
+
+    # Register error handlers
+    register_error_handlers(app)
 
     # Register blueprints
-    from src.routes.web import web_bp
-    from src.routes.api import api_bp
-    from src.routes.data import data_bp
-    from src.routes.telegram import telegram_bp
-    from src.routes.daily import daily_bp
-    from src.routes.fmp_routes import fmp_bp
-    from src.routes.yfinance_routes import yfinance_bp
+    register_blueprints(app, logger)
 
-    app.register_blueprint(web_bp)
-    app.register_blueprint(api_bp, url_prefix='/api')
-    app.register_blueprint(data_bp, url_prefix='/api/data')
-    app.register_blueprint(telegram_bp, url_prefix='/api/telegram')
-    app.register_blueprint(daily_bp, url_prefix='/api/daily')
-    app.register_blueprint(fmp_bp, url_prefix='/api/fmp')
-    app.register_blueprint(yfinance_bp, url_prefix='/api/yfinance')
+    # Register middleware
+    register_middleware(app)
 
+    logger.info(f"🚀 FinBot v2.0.0 started in {env} mode")
     return app
+
+def register_error_handlers(app):
+    """Register error handlers"""
+
+    @app.errorhandler(404)
+    def not_found(error):
+        return jsonify({
+            'error': 'Not Found',
+            'message': 'The requested resource was not found',
+            'status_code': 404
+        }), 404
+
+    @app.errorhandler(500)
+    def internal_error(error):
+        return jsonify({
+            'error': 'Internal Server Error',
+            'message': 'An unexpected error occurred',
+            'status_code': 500
+        }), 500
+
+    @app.errorhandler(429)
+    def rate_limit_exceeded(error):
+        return jsonify({
+            'error': 'Rate Limit Exceeded',
+            'message': 'Too many requests, please try again later',
+            'status_code': 429
+        }), 429
+
+def register_blueprints(app, logger):
+    """Register all blueprints"""
+    try:
+        # Core web routes
+        from src.routes.web import web_bp
+        app.register_blueprint(web_bp)
+        logger.info("✅ Web routes registered")
+
+        # API routes
+        from src.routes.api import api_bp
+        app.register_blueprint(api_bp, url_prefix='/api')
+        logger.info("✅ API routes registered")
+
+        # Data routes
+        from src.routes.data import data_bp
+        app.register_blueprint(data_bp, url_prefix='/api/data')
+        logger.info("✅ Data routes registered")
+
+        # Analysis routes
+        from src.routes.weekly_analysis import weekly_analysis_bp
+        app.register_blueprint(weekly_analysis_bp, url_prefix='/api/weekly-analysis')
+        logger.info("✅ Weekly analysis routes registered")
+
+        from src.routes.ai_weekly import ai_weekly_bp
+        app.register_blueprint(ai_weekly_bp, url_prefix='/ai-weekly')
+        logger.info("✅ AI weekly routes registered")
+
+        # Data source routes
+        from src.routes.yfinance_routes import yfinance_bp
+        app.register_blueprint(yfinance_bp, url_prefix='/api/yfinance')
+        logger.info("✅ YFinance routes registered")
+
+        from src.routes.fmp_routes import fmp_bp
+        app.register_blueprint(fmp_bp, url_prefix='/api/fmp')
+        logger.info("✅ FMP routes registered")
+
+        # Utility routes
+        from src.routes.comparison_routes import comparison_bp
+        app.register_blueprint(comparison_bp, url_prefix='/api/comparison')
+        logger.info("✅ Comparison routes registered")
+
+        from src.routes.daily import daily_bp
+        app.register_blueprint(daily_bp, url_prefix='/api/daily')
+        logger.info("✅ Daily analysis routes registered")
+
+        # Optional routes (may not exist)
+        try:
+            from src.routes.telegram import telegram_bp
+            app.register_blueprint(telegram_bp, url_prefix='/api/telegram')
+            logger.info("✅ Telegram routes registered")
+        except ImportError:
+            logger.warning("⚠️ Telegram routes not available")
+
+    except ImportError as e:
+        logger.error(f"❌ Failed to import routes: {e}")
+        raise
+
+def register_middleware(app):
+    """Register middleware functions"""
+
+    @app.before_request
+    def before_request():
+        """Log request information"""
+        if app.debug:
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Request: {request.method} {request.path}")
+
+    @app.after_request
+    def after_request(response):
+        """Add security headers"""
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        return response
 
 app = create_app()
 
