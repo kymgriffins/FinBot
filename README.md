@@ -1,36 +1,63 @@
-# 🤖 FinBot - Real-Time Financial Data Monitor
+FinBot
+=====
 
-A sophisticated Python bot that monitors stock market data in real-time, stores it in a database, and sends intelligent alerts via Telegram. Perfect for traders and investors who want automated market monitoring.
+Modern Flask app structure with app factory and blueprints.
 
-![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-green.svg)
-![Render](https://img.shields.io/badge/Deployed-Render-purple.svg)
-![Telegram](https://img.shields.io/badge/Telegram-Bot-blue.svg)
+Quick start
+-----------
 
-## ✨ Features
+1. Create `.env`:
 
-### 📊 Data Collection
-- **Real-time 1-minute** stock data from Yahoo Finance
-- **Multiple ticker** support (AAPL, MSFT, TSLA, etc.)
-- **Automatic market hours** detection (9:30 AM - 4:00 PM EST)
-- **Persistent storage** in PostgreSQL database
+```
+TELEGRAM_BOT_TOKEN=your_token
+SYMBOLS=ES=F,NQ=F,YM=F,6E=F,CL=F,GC=F,SI=F
+TIMEZONE=America/New_York
+```
 
-### 🔔 Smart Alerts
-- **Hourly summaries** during trading hours
-- **Market open/close** notifications
-- **Custom price alerts** on demand
-- **Beautiful formatted messages** with emojis
+2. Install deps: `pip install -r requirements.txt`
 
-### 🚀 Deployment
-- **Free hosting** on Render
-- **Auto-scaling** web service
-- **Scheduled tasks** for continuous operation
-- **REST API** for data access
+3. Run: `python app.py`
 
-## 🛠 Quick Setup
+Key endpoints
+-------------
 
-### 1. Clone & Setup
-```bash
-git clone https://github.com/kymmgiffins/finbot.git
-cd finbot
-cp .env.example .env
+- `/` Home dashboard
+- `/api/health` Health check
+- `/data/generate-csv` Generate and send weekly CSVs
+- `/telegram/test` Send test Telegram message
+
+Project layout
+--------------
+
+```
+finbot/
+├── app.py
+├── wsgi.py
+├── requirements.txt
+├── .env
+├── render.yaml
+├── README.md
+├── src/
+│   ├── __init__.py
+│   ├── routes/
+│   │   ├── __init__.py
+│   │   ├── api.py
+│   │   ├── data.py
+│   │   ├── telegram.py
+│   │   └── web.py
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── data_fetcher.py
+│   │   └── telegram_bot.py
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   └── decorators.py
+│   └── models/
+│       ├── __init__.py
+│       └── schemas.py
+├── templates/
+│   └── base.html
+└── static/
+    ├── css/
+    ├── js/
+    └── images/
