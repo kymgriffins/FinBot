@@ -1,0 +1,46 @@
+<!-- Footer -->
+<footer class="bg-white bg-opacity-10 backdrop-blur-lg border-t border-white border-opacity-20 mt-12">
+  <div class="container mx-auto px-4 py-6">
+    <div class="text-center text-white opacity-75">
+      <p>FinBot • Futures Data Analytics • Built with Flask</p>
+      <p class="text-sm mt-2">
+        <i class="fas fa-clock mr-1"></i>Last updated: <span id="currentTime"></span>
+      </p>
+    </div>
+  </div>
+</footer>
+
+<!-- JavaScript -->
+<script>
+  // Mobile menu toggle
+  document.getElementById('mobileMenuButton').addEventListener('click', function () {
+    const menu = document.getElementById('mobileMenu');
+    menu.classList.toggle('hidden');
+  });
+
+  // Update current time
+  function updateTime() {
+    const now = new Date();
+    document.getElementById('currentTime').textContent = now.toLocaleString();
+  }
+  setInterval(updateTime, 1000);
+  updateTime();
+
+  // Add loading states to buttons
+  document.addEventListener('DOMContentLoaded', function () {
+    const buttons = document.querySelectorAll('button, a[href*="/api/"]');
+    buttons.forEach(button => {
+      button.addEventListener('click', function (e) {
+        if (this.href && this.href.includes('/api/')) {
+          this.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Loading...';
+          this.disabled = true;
+        }
+      });
+    });
+  });
+</script>
+
+{% block extra_js %}{% endblock %}
+</body>
+
+</html>

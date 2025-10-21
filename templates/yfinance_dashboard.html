@@ -1,0 +1,569 @@
+{% extends "base.html" %}
+
+{% block title %}yFinance Analytics - FinBot{% endblock %}
+
+{% block extra_css %}
+<style>
+  .price-up {
+    color: #10b981;
+  }
+
+  .price-down {
+    color: #ef4444;
+  }
+
+  .price-neutral {
+    color: #6b7280;
+  }
+
+  .sparkline {
+    width: 100px;
+    height: 30px;
+    display: inline-block;
+  }
+
+  .market-status-open {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+  }
+
+  .market-status-closed {
+    background: linear-gradient(135deg, #6b7280, #4b5563);
+    color: white;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="text-center mb-8">
+  <h1 class="text-4xl font-bold text-white mb-4">
+    <i class="fab fa-yahoo mr-3"></i>yFinance Analytics
+  </h1>
+  <p class="text-xl text-white opacity-90">Real-time Market Data & Technical Analysis</p>
+
+  <!-- Market Status -->
+  <div id="marketStatus" class="inline-flex items-center mt-4 px-4 py-2 rounded-full text-white">
+    <i class="fas fa-spinner fa-spin mr-2"></i>
+    <span>Checking market status...</span>
+  </div>
+</div>
+
+<!-- Quick Stats Overview -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+  <div class="bg-white rounded-xl p-4 card-hover">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm text-gray-500">Tracked Symbols</p>
+        <p id="symbolCount" class="text-2xl font-bold text-gray-800">--</p>
+      </div>
+      <i class="fas fa-list-ul text-2xl text-blue-500"></i>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl p-4 card-hover">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm text-gray-500">Market Hours</p>
+        <p id="marketHours" class="text-2xl font-bold text-gray-800">--</p>
+      </div>
+      <i class="fas fa-clock text-2xl text-green-500"></i>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl p-4 card-hover">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm text-gray-500">Data Interval</p>
+        <p class="text-2xl font-bold text-gray-800">1min</p>
+      </div>
+      <i class="fas fa-sync-alt text-2xl text-purple-500"></i>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl p-4 card-hover">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm text-gray-500">Last Update</p>
+        <p id="lastUpdate" class="text-lg font-bold text-gray-800">--</p>
+      </div>
+      <i class="fas fa-database text-2xl text-orange-500"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Main Content Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+  <!-- Symbol Search & Controls -->
+  <div class="bg-white rounded-2xl p-6 card-hover">
+    <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+      <i class="fas fa-search mr-3 text-blue-600"></i>Symbol Lookup
+    </h2>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2">Symbol</label>
+        <input type="text" id="symbolInput" placeholder="e.g., AAPL, TSLA, BTC-USD"
+          class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="getQuote()" class="bg-blue-500 text-white p-3 rounded-lg hover:bg-blue-600 transition-colors">
+          <i class="fas fa-chart-line mr-2"></i>Get Quote
+        </button>
+        <button onclick="getHistorical()"
+          class="bg-green-500 text-white p-3 rounded-lg hover:bg-green-600 transition-colors">
+          <i class="fas fa-history mr-2"></i>Historical Data
+        </button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="getOptions()"
+          class="bg-purple-500 text-white p-3 rounded-lg hover:bg-purple-600 transition-colors">
+          <i class="fas fa-cog mr-2"></i>Options Data
+        </button>
+        <button onclick="getNews()" class="bg-red-500 text-white p-3 rounded-lg hover:bg-red-600 transition-colors">
+          <i class="fas fa-newspaper mr-2"></i>Get News
+        </button>
+      </div>
+
+      <!-- Quick Symbol Buttons -->
+      <div class="pt-4 border-t">
+        <p class="text-sm font-medium text-gray-700 mb-2">Quick Symbols:</p>
+        <div class="grid grid-cols-3 gap-2">
+          <button onclick="setSymbol('AAPL')"
+            class="bg-gray-100 text-gray-700 p-2 rounded hover:bg-gray-200 text-sm">AAPL</button>
+          <button onclick="setSymbol('TSLA')"
+            class="bg-gray-100 text-gray-700 p-2 rounded hover:bg-gray-200 text-sm">TSLA</button>
+          <button onclick="setSymbol('SPY')"
+            class="bg-gray-100 text-gray-700 p-2 rounded hover:bg-gray-200 text-sm">SPY</button>
+          <button onclick="setSymbol('BTC-USD')"
+            class="bg-gray-100 text-gray-700 p-2 rounded hover:bg-gray-200 text-sm">BTC</button>
+          <button onclick="setSymbol('GC=F')"
+            class="bg-gray-100 text-gray-700 p-2 rounded hover:bg-gray-200 text-sm">Gold</button>
+          <button onclick="setSymbol('CL=F')"
+            class="bg-gray-100 text-gray-700 p-2 rounded hover:bg-gray-200 text-sm">Oil</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Real-time Quotes -->
+  <div class="bg-white rounded-2xl p-6 card-hover lg:col-span-2">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+        <i class="fas fa-bolt mr-3 text-green-600"></i>Real-time Quotes
+      </h2>
+      <button onclick="refreshQuotes()" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">
+        <i class="fas fa-sync-alt mr-2"></i>Refresh
+      </button>
+    </div>
+
+    <div id="quotesContainer" class="space-y-3 max-h-96 overflow-y-auto">
+      <!-- Quotes will be loaded here -->
+      <div class="text-center text-gray-500 py-8">
+        <i class="fas fa-chart-line text-3xl mb-3"></i>
+        <p>Enter a symbol to see real-time quotes</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Analysis Results -->
+<div class="bg-white rounded-2xl p-6 card-hover mb-6">
+  <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+    <i class="fas fa-chart-bar mr-3 text-purple-600"></i>Analysis Results
+  </h2>
+  <div id="resultsContainer" class="min-h-200">
+    <div class="text-center text-gray-500 py-8">
+      <i class="fas fa-search text-3xl mb-3"></i>
+      <p>Run an analysis to see results here</p>
+    </div>
+  </div>
+</div>
+
+<!-- Tracked Symbols Performance -->
+<div class="bg-white rounded-2xl p-6 card-hover">
+  <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+    <i class="fas fa-star mr-3 text-yellow-600"></i>Tracked Symbols Performance
+  </h2>
+  <div id="trackedSymbolsContainer">
+    <!-- Tracked symbols will be loaded here -->
+  </div>
+</div>
+
+<script>
+  // Global variables
+  let trackedSymbols = [];
+
+  // Initialize dashboard
+  document.addEventListener('DOMContentLoaded', function () {
+    loadTrackedSymbols();
+    updateMarketStatus();
+    setInterval(updateMarketStatus, 30000); // Update every 30 seconds
+    setInterval(loadTrackedSymbols, 60000); // Refresh quotes every minute
+  });
+
+  // Utility functions
+  function setSymbol(symbol) {
+    document.getElementById('symbolInput').value = symbol;
+  }
+
+  function formatPrice(price) {
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(price);
+  }
+
+  function formatLargeNumber(num) {
+    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+    if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+    return num.toString();
+  }
+
+  function getPriceClass(change, changePercent) {
+    if (change > 0) return 'price-up';
+    if (change < 0) return 'price-down';
+    return 'price-neutral';
+  }
+
+  function formatPercent(percent) {
+    return (percent > 0 ? '+' : '') + percent.toFixed(2) + '%';
+  }
+
+  // API Functions
+  async function loadTrackedSymbols() {
+    try {
+      const response = await fetch('/api/yfinance/tracked-symbols');
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        trackedSymbols = data.symbols;
+        displayTrackedSymbols(data.symbols);
+        updateStats(data.symbols.length);
+      }
+    } catch (error) {
+      console.error('Error loading tracked symbols:', error);
+    }
+  }
+
+  async function updateMarketStatus() {
+    try {
+      const response = await fetch('/api/yfinance/market-status');
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        const statusDiv = document.getElementById('marketStatus');
+        if (data.is_open) {
+          statusDiv.className = 'inline-flex items-center mt-4 px-4 py-2 rounded-full market-status-open';
+          statusDiv.innerHTML = `<i class="fas fa-check-circle mr-2"></i><span>Market Open - ${data.current_time}</span>`;
+          document.getElementById('marketHours').textContent = 'Open';
+        } else {
+          statusDiv.className = 'inline-flex items-center mt-4 px-4 py-2 rounded-full market-status-closed';
+          statusDiv.innerHTML = `<i class="fas fa-times-circle mr-2"></i><span>Market Closed - ${data.current_time}</span>`;
+          document.getElementById('marketHours').textContent = 'Closed';
+        }
+        document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+      }
+    } catch (error) {
+      console.error('Error updating market status:', error);
+    }
+  }
+
+  async function getQuote() {
+    const symbol = document.getElementById('symbolInput').value.trim();
+    if (!symbol) {
+      showError('Please enter a symbol');
+      return;
+    }
+
+    try {
+      showLoading('resultsContainer');
+      const response = await fetch(`/api/yfinance/quote/${symbol}`);
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        displayQuote(data.quote, symbol);
+      } else {
+        showError(data.error || 'Failed to get quote');
+      }
+    } catch (error) {
+      showError('Failed to get quote data');
+    }
+  }
+
+  async function getHistorical() {
+    const symbol = document.getElementById('symbolInput').value.trim();
+    if (!symbol) {
+      showError('Please enter a symbol');
+      return;
+    }
+
+    try {
+      showLoading('resultsContainer');
+      const response = await fetch(`/api/yfinance/historical/${symbol}?period=1mo&interval=1d`);
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        displayHistorical(data.historical, symbol);
+      } else {
+        showError(data.error || 'Failed to get historical data');
+      }
+    } catch (error) {
+      showError('Failed to get historical data');
+    }
+  }
+
+  async function getOptions() {
+    const symbol = document.getElementById('symbolInput').value.trim();
+    if (!symbol) {
+      showError('Please enter a symbol');
+      return;
+    }
+
+    try {
+      showLoading('resultsContainer');
+      const response = await fetch(`/api/yfinance/options/${symbol}`);
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        displayOptions(data.options, symbol);
+      } else {
+        showError(data.error || 'Failed to get options data');
+      }
+    } catch (error) {
+      showError('Failed to get options data');
+    }
+  }
+
+  async function getNews() {
+    const symbol = document.getElementById('symbolInput').value.trim();
+    if (!symbol) {
+      showError('Please enter a symbol');
+      return;
+    }
+
+    try {
+      showLoading('resultsContainer');
+      const response = await fetch(`/api/yfinance/news/${symbol}`);
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        displayNews(data.news, symbol);
+      } else {
+        showError(data.error || 'Failed to get news');
+      }
+    } catch (error) {
+      showError('Failed to get news');
+    }
+  }
+
+  async function refreshQuotes() {
+    await loadTrackedSymbols();
+  }
+
+  // Display Functions
+  function displayTrackedSymbols(symbols) {
+    const container = document.getElementById('trackedSymbolsContainer');
+
+    if (!symbols || symbols.length === 0) {
+      container.innerHTML = '<div class="text-center text-gray-500 py-4">No tracked symbols configured</div>';
+      return;
+    }
+
+    container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            ${symbols.map(symbol => `
+                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h3 class="font-bold text-lg">${symbol.symbol}</h3>
+                            <p class="text-sm text-gray-600">${symbol.name}</p>
+                        </div>
+                        <span class="px-2 py-1 text-xs rounded-full ${getPriceClass(symbol.change, symbol.change_percent)}">
+                            ${formatPercent(symbol.change_percent)}
+                        </span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-2xl font-bold ${getPriceClass(symbol.change, symbol.change_percent)}">
+                            $${formatPrice(symbol.price)}
+                        </span>
+                        <div class="text-right text-sm">
+                            <div class="${getPriceClass(symbol.change, symbol.change_percent)}">
+                                ${symbol.change > 0 ? '+' : ''}${formatPrice(symbol.change)}
+                            </div>
+                            <div class="text-gray-500">
+                                Vol: ${formatLargeNumber(symbol.volume)}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+  }
+
+  function displayQuote(quote, symbol) {
+    const container = document.getElementById('resultsContainer');
+
+    container.innerHTML = `
+        <div class="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg p-6 mb-4">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h3 class="text-2xl font-bold">${quote.longName || symbol}</h3>
+                    <p class="opacity-90">${quote.symbol} • ${quote.exchange || 'N/A'}</p>
+                </div>
+                <div class="text-right">
+                    <div class="text-3xl font-bold">$${formatPrice(quote.currentPrice)}</div>
+                    <div class="text-lg ${getPriceClass(quote.change, quote.changePercent)}">
+                        ${quote.change > 0 ? '+' : ''}${formatPrice(quote.change)} (${formatPercent(quote.changePercent)})
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="text-center p-4 bg-gray-50 rounded-lg">
+                <div class="text-sm text-gray-600">Open</div>
+                <div class="text-xl font-bold">$${formatPrice(quote.open)}</div>
+            </div>
+            <div class="text-center p-4 bg-gray-50 rounded-lg">
+                <div class="text-sm text-gray-600">Day High</div>
+                <div class="text-xl font-bold">$${formatPrice(quote.dayHigh)}</div>
+            </div>
+            <div class="text-center p-4 bg-gray-50 rounded-lg">
+                <div class="text-sm text-gray-600">Day Low</div>
+                <div class="text-xl font-bold">$${formatPrice(quote.dayLow)}</div>
+            </div>
+            <div class="text-center p-4 bg-gray-50 rounded-lg">
+                <div class="text-sm text-gray-600">Volume</div>
+                <div class="text-xl font-bold">${formatLargeNumber(quote.volume)}</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div class="p-4 border rounded-lg">
+                <div class="text-sm text-gray-600">Market Cap</div>
+                <div class="text-lg font-semibold">${formatLargeNumber(quote.marketCap)}</div>
+            </div>
+            <div class="p-4 border rounded-lg">
+                <div class="text-sm text-gray-600">PE Ratio</div>
+                <div class="text-lg font-semibold">${quote.trailingPE ? quote.trailingPE.toFixed(2) : 'N/A'}</div>
+            </div>
+            <div class="p-4 border rounded-lg">
+                <div class="text-sm text-gray-600">52W High</div>
+                <div class="text-lg font-semibold">$${formatPrice(quote.fiftyTwoWeekHigh)}</div>
+            </div>
+        </div>
+    `;
+  }
+
+  function displayHistorical(data, symbol) {
+    const container = document.getElementById('resultsContainer');
+
+    if (!data || data.length === 0) {
+      container.innerHTML = '<div class="text-center text-gray-500 py-8">No historical data available</div>';
+      return;
+    }
+
+    // Show last 10 days
+    const recentData = data.slice(-10);
+
+    container.innerHTML = `
+        <h3 class="text-xl font-bold mb-4">Historical Data - ${symbol} (Last 10 Days)</h3>
+        <div class="overflow-x-auto">
+            <table class="min-w-full bg-white">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left">Date</th>
+                        <th class="px-4 py-2 text-right">Open</th>
+                        <th class="px-4 py-2 text-right">High</th>
+                        <th class="px-4 py-2 text-right">Low</th>
+                        <th class="px-4 py-2 text-right">Close</th>
+                        <th class="px-4 py-2 text-right">Volume</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${recentData.map(day => `
+                        <tr class="border-t hover:bg-gray-50">
+                            <td class="px-4 py-2">${new Date(day.date).toLocaleDateString()}</td>
+                            <td class="px-4 py-2 text-right">$${formatPrice(day.open)}</td>
+                            <td class="px-4 py-2 text-right">$${formatPrice(day.high)}</td>
+                            <td class="px-4 py-2 text-right">$${formatPrice(day.low)}</td>
+                            <td class="px-4 py-2 text-right font-semibold">$${formatPrice(day.close)}</td>
+                            <td class="px-4 py-2 text-right">${formatLargeNumber(day.volume)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+  }
+
+  function displayOptions(data, symbol) {
+    const container = document.getElementById('resultsContainer');
+
+    container.innerHTML = `
+        <h3 class="text-xl font-bold mb-4">Options Data - ${symbol}</h3>
+        <div class="text-center text-gray-500 py-8">
+            <i class="fas fa-cog text-3xl mb-3"></i>
+            <p>Options data would be displayed here</p>
+            <p class="text-sm">Calls, puts, strikes, and expiration dates</p>
+        </div>
+    `;
+  }
+
+  function displayNews(news, symbol) {
+    const container = document.getElementById('resultsContainer');
+
+    if (!news || news.length === 0) {
+      container.innerHTML = '<div class="text-center text-gray-500 py-8">No news available</div>';
+      return;
+    }
+
+    container.innerHTML = `
+        <h3 class="text-xl font-bold mb-4">Latest News - ${symbol}</h3>
+        <div class="space-y-4">
+            ${news.slice(0, 5).map(article => `
+                <div class="border-l-4 border-blue-500 pl-4 bg-gray-50 p-3 rounded">
+                    <div class="flex justify-between items-start">
+                        <h4 class="font-semibold text-gray-800">${article.title}</h4>
+                        <span class="text-sm text-gray-500">${new Date(article.published_at).toLocaleDateString()}</span>
+                    </div>
+                    <p class="text-gray-600 text-sm mt-2">${article.summary || 'No summary available'}</p>
+                    <div class="flex justify-between items-center mt-2">
+                        <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${article.publisher}</span>
+                        <a href="${article.link}" target="_blank" class="text-blue-500 hover:text-blue-700 text-sm">
+                            Read More <i class="fas fa-external-link-alt ml-1"></i>
+                        </a>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+  }
+
+  function updateStats(symbolCount) {
+    document.getElementById('symbolCount').textContent = symbolCount;
+  }
+
+  function showLoading(containerId) {
+    document.getElementById(containerId).innerHTML = `
+        <div class="text-center py-8">
+            <i class="fas fa-spinner fa-spin text-2xl text-blue-500 mb-2"></i>
+            <p>Loading data...</p>
+        </div>
+    `;
+  }
+
+  function showError(message) {
+    document.getElementById('resultsContainer').innerHTML = `
+        <div class="text-center py-8 text-red-500">
+            <i class="fas fa-exclamation-triangle text-2xl mb-2"></i>
+            <p>${message}</p>
+        </div>
+    `;
+  }
+</script>
+{% endblock %}
