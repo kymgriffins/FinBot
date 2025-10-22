@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block page_title %}ICT Last 10 Days{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 gap-6">
+  <div class="flex items-center justify-between">
+    <h2 class="text-2xl font-semibold">ICT - Last 10 Trading Days</h2>
+    <div>
+      <select id="symbolSelect" class="p-2 rounded bg-white text-gray-800">
+        <option value="ES=F">ES=F</option>
+        <option value="NQ=F">NQ=F</option>
+        <option value="YM=F">YM=F</option>
+        <option value="CL=F">CL=F</option>
+        <option value="GC=F">GC=F</option>
+        <option value="EURUSD=X">EURUSD=X</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="cardsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+</div>
+
+<script src="/static/js/ict_last10.js"></script>
+{% endblock %}

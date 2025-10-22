@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block title %}Market Overview Cards{% endblock %}
+{% block page_title %}Market Overview - Cards{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  {% for symbol, cards in data.items() %}
+  <section class="card p-4">
+    <h2 class="text-xl font-bold mb-2">{{ symbol }}</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {% for c in cards %}
+      <div class="p-3 border rounded">
+        <div class="text-sm text-gray-700">Date: {{ c.date }}</div>
+        <div class="text-sm">Open: {{ c.daily_open }} Close: {{ c.daily_close }}</div>
+        <div class="text-sm">High: {{ c.daily_high }} Low: {{ c.daily_low }}</div>
+        <div class="text-sm text-gray-600">Range: {{ c.daily_range }}</div>
+        <div class="mt-2 text-xs text-gray-500">Premium: {{ c.top_premium }} Discount: {{ c.top_discount }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

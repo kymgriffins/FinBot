@@ -7,6 +7,7 @@ import os
 
 logger = logging.getLogger(__name__)
 yfinance_bp = Blueprint('yfinance', __name__)
+from src.services.provider_registry import get_adapter, map_symbol_to_provider
 
 @yfinance_bp.route('/')
 def yfinance_dashboard():
@@ -17,7 +18,10 @@ def yfinance_dashboard():
 def get_tracked_symbols():
     """Get current prices for tracked symbols"""
     try:
+        provider = request.args.get('provider') or request.args.get('data_provider') or 'yfinance'
         symbols = os.getenv('SYMBOLS', 'AAPL,MSFT,GOOGL,TSLA,SPY,QQQ').split(',')
+        if provider != 'yfinance':
+            symbols = [map_symbol_to_provider(s, provider) or s for s in symbols]
         symbols_data = []
 
         for symbol in symbols:
@@ -80,38 +84,67 @@ def market_status():
 def get_quote(symbol):
     """Get detailed quote for a symbol"""
     try:
-        ticker = yf.Ticker(symbol)
-        info = ticker.info
-        history = ticker.history(period='1d', interval='1m')
+        provider = request.args.get('provider') or request.args.get('data_provider') or 'yfinance'
+        provider_symbol = map_symbol_to_provider(symbol, provider)
+        adapter = get_adapter(provider)
 
-        if history.empty:
-            return jsonify({"error": "No data available for symbol"}), 404
+        if provider == 'yfinance':
+            ticker = yf.Ticker(provider_symbol)
+            info = ticker.info
+            history = ticker.history(period='1d', interval='1m')
 
-        current_price = history['Close'].iloc[-1]
-        prev_close = info.get('previousClose', current_price)
-        change = current_price - prev_close
-        change_percent = (change / prev_close) * 100
+            if history.empty:
+                return jsonify({"error": "No data available for symbol"}), 404
 
-        quote = {
-            'symbol': symbol,
-            'longName': info.get('longName', symbol),
-            'currentPrice': round(current_price, 2),
-            'previousClose': round(prev_close, 2),
-            'change': round(change, 2),
-            'changePercent': round(change_percent, 2),
-            'open': info.get('open', current_price),
-            'dayHigh': info.get('dayHigh', current_price),
-            'dayLow': info.get('dayLow', current_price),
-            'volume': info.get('volume', 0),
-            'marketCap': info.get('marketCap', 0),
-            'trailingPE': info.get('trailingPE'),
-            'forwardPE': info.get('forwardPE'),
-            'dividendYield': info.get('dividendYield'),
-            'fiftyTwoWeekHigh': info.get('fiftyTwoWeekHigh'),
-            'fiftyTwoWeekLow': info.get('fiftyTwoWeekLow'),
-            'exchange': info.get('exchange', 'N/A'),
-            'currency': info.get('currency', 'USD')
-        }
+            current_price = history['Close'].iloc[-1]
+            prev_close = info.get('previousClose', current_price)
+            change = current_price - prev_close
+            change_percent = (change / prev_close) * 100 if prev_close else 0
+
+            quote = {
+                'symbol': provider_symbol,
+                'longName': info.get('longName', symbol),
+                'currentPrice': round(current_price, 2),
+                'previousClose': round(prev_close, 2),
+                'change': round(change, 2),
+                'changePercent': round(change_percent, 2),
+                'open': info.get('open', current_price),
+                'dayHigh': info.get('dayHigh', current_price),
+                'dayLow': info.get('dayLow', current_price),
+                'volume': info.get('volume', 0),
+                'marketCap': info.get('marketCap', 0),
+                'trailingPE': info.get('trailingPE'),
+                'forwardPE': info.get('forwardPE'),
+                'dividendYield': info.get('dividendYield'),
+                'fiftyTwoWeekHigh': info.get('fiftyTwoWeekHigh'),
+                'fiftyTwoWeekLow': info.get('fiftyTwoWeekLow'),
+                'exchange': info.get('exchange', 'N/A'),
+                'currency': info.get('currency', 'USD')
+            }
+        else:
+            # Adapter-driven quote
+            info = adapter.get_symbol_info(provider_symbol) or {}
+            current_price = adapter.get_current_price(provider_symbol)
+            quote = {
+                'symbol': provider_symbol,
+                'longName': info.get('name') if isinstance(info, dict) else symbol,
+                'currentPrice': round(current_price, 4) if current_price is not None else None,
+                'previousClose': None,
+                'change': None,
+                'changePercent': None,
+                'open': None,
+                'dayHigh': None,
+                'dayLow': None,
+                'volume': None,
+                'marketCap': None,
+                'trailingPE': None,
+                'forwardPE': None,
+                'dividendYield': None,
+                'fiftyTwoWeekHigh': None,
+                'fiftyTwoWeekLow': None,
+                'exchange': info.get('exchange') if isinstance(info, dict) else None,
+                'currency': info.get('currency') if isinstance(info, dict) else None
+            }
 
         return jsonify({
             "status": "success",
@@ -129,8 +162,16 @@ def get_historical(symbol):
         period = request.args.get('period', '1mo')
         interval = request.args.get('interval', '1d')
 
-        ticker = yf.Ticker(symbol)
-        history = ticker.history(period=period, interval=interval)
+        provider = request.args.get('provider') or request.args.get('data_provider') or 'yfinance'
+        provider_symbol = map_symbol_to_provider(symbol, provider)
+        adapter = get_adapter(provider)
+
+        if provider == 'yfinance':
+            ticker = yf.Ticker(provider_symbol)
+            history = ticker.history(period=period, interval=interval)
+        else:
+            history_df = adapter.get_historical_data(provider_symbol, period=period, interval=interval)
+            history = history_df
 
         if history.empty:
             return jsonify({"error": "No historical data available"}), 404

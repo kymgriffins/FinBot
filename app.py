@@ -149,6 +149,14 @@ def register_blueprints(app, logger):
         app.register_blueprint(fmp_bp, url_prefix='/api/fmp')
         logger.info("[OK] FMP routes registered")
 
+        # Providers routes (status, list)
+        try:
+            from src.routes.providers import providers_bp
+            app.register_blueprint(providers_bp, url_prefix='/api/providers')
+            logger.info("[OK] Providers routes registered")
+        except ImportError:
+            logger.warning("[WARN] Providers routes not available")
+
         # Utility routes
         from src.routes.comparison_routes import comparison_bp
         app.register_blueprint(comparison_bp, url_prefix='/api/comparison')

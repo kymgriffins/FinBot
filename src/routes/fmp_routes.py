@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request, render_template, current_app
 from src.services.data_adapters.fmp_adapter import FMPAdapter
+from src.services.provider_registry import get_adapter, map_symbol_to_provider
 import logging
 import os
 logger = logging.getLogger(__name__)
@@ -45,8 +46,21 @@ def get_usage():
 def get_financials(symbol):
     """Get financial statements for a symbol"""
     try:
+        provider = request.args.get('provider') or request.args.get('data_provider') or 'fmp'
         statement_type = request.args.get('type', 'income')
-        statements = fmp_adapter.get_financial_statements(symbol, statement_type)
+
+        # map canonical symbol to provider specific symbol
+        provider_symbol = map_symbol_to_provider(symbol, provider)
+
+        adapter = get_adapter(provider)
+        # if adapter doesn't support financials, fall back to fmp
+        if provider.lower() != 'fmp':
+            try:
+                statements = adapter.get_financial_statements(provider_symbol, statement_type)
+            except Exception:
+                statements = fmp_adapter.get_financial_statements(symbol, statement_type)
+        else:
+            statements = fmp_adapter.get_financial_statements(symbol, statement_type)
 
         if statements is None:
             return jsonify({"error": "No financial data available"}), 404
@@ -105,10 +119,16 @@ def stock_screener():
 def technical_indicators(symbol):
     """Get technical indicators"""
     try:
+        provider = request.args.get('provider') or request.args.get('data_provider') or 'fmp'
         indicator = request.args.get('indicator', 'sma')
         period = request.args.get('period', 50, type=int)
 
-        indicators = fmp_adapter.get_technical_indicators(symbol, indicator, period)
+        provider_symbol = map_symbol_to_provider(symbol, provider)
+        adapter = get_adapter(provider)
+        try:
+            indicators = adapter.get_technical_indicators(provider_symbol, indicator, period)
+        except Exception:
+            indicators = fmp_adapter.get_technical_indicators(symbol, indicator, period)
 
         return jsonify({
             "status": "success",
@@ -158,7 +178,13 @@ def forex_rates():
 def crypto_price(symbol):
     """Get cryptocurrency price"""
     try:
-        price = fmp_adapter.get_crypto_prices(symbol)
+        provider = request.args.get('provider') or request.args.get('data_provider') or 'fmp'
+        provider_symbol = map_symbol_to_provider(symbol, provider)
+        adapter = get_adapter(provider)
+        try:
+            price = adapter.get_crypto_prices(provider_symbol)
+        except Exception:
+            price = fmp_adapter.get_crypto_prices(symbol)
 
         return jsonify({
             "status": "success",

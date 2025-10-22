@@ -9,6 +9,8 @@ import logging
 from dataclasses import dataclass, asdict
 from enum import Enum
 from typing import Dict, List, Optional
+import pandas as pd
+import pytz
 
 logger = logging.getLogger(__name__)
 
@@ -622,6 +624,271 @@ def market_overview():
     symbols = ['ES=F', 'NQ=F', 'YM=F', 'CL=F', 'GC=F', 'EURUSD=X']
     current_date = datetime.now().strftime('%Y-%m-%d')
     return render_template('market_overview.html', symbols=symbols, datetime=datetime, current_date=current_date)
+
+
+@ict_trading_bp.route('/market-overview/last10')
+def market_overview_last10():
+    """Standalone page showing last 10 trading days ICT cards for a symbol."""
+    return render_template('ict_last10.html')
+
+
+@ict_trading_bp.route('/market-overview/cards')
+def market_overview_cards():
+    """Return ICT summary cards for the last N trading days for each symbol.
+
+    Query params:
+      symbols: comma-separated symbol list (default same as dashboard)
+      days: number of recent trading days to include (default 10)
+    """
+    try:
+        symbols = request.args.get('symbols', 'ES=F,NQ=F,YM=F,CL=F,GC=F,EURUSD=X').split(',')
+        days = int(request.args.get('days', 10))
+
+        # Build last N trading dates (weekdays)
+        dates = []
+        cur = datetime.now()
+        while len(dates) < days:
+            if cur.weekday() < 5:  # Mon-Fri
+                dates.append(cur)
+            cur = cur - timedelta(days=1)
+
+        dates = sorted(dates)
+
+        result: Dict[str, List[Dict]] = {}
+
+        for symbol in symbols:
+            sym = symbol.strip()
+            cards: List[Dict] = []
+            for d in dates:
+                analysis = ict_analyzer.analyze_daily_profile(sym, d)
+                # Skip days with no data
+                if not analysis or 'error' in analysis:
+                    continue
+
+                top_premium = analysis.get('premium_levels', [])
+                top_discount = analysis.get('discount_levels', [])
+
+                card = {
+                    'date': analysis.get('date'),
+                    'symbol': sym,
+                    'daily_open': analysis.get('daily_open'),
+                    'daily_close': analysis.get('daily_close'),
+                    'daily_high': analysis.get('daily_high'),
+                    'daily_low': analysis.get('daily_low'),
+                    'daily_range': analysis.get('daily_range'),
+                    'market_condition': analysis.get('market_condition'),
+                    'top_premium': top_premium[0] if top_premium else None,
+                    'top_discount': top_discount[0] if top_discount else None,
+                    'fvg_count': len(analysis.get('fvg_levels', [])),
+                    'liquidity_count': len(analysis.get('liquidity_levels', []))
+                }
+                cards.append(card)
+
+            result[sym] = cards
+
+        # Render HTML page with cards
+        return render_template('market_overview_cards.html', data=result)
+
+    except Exception as e:
+        logger.exception(f"Error building market overview cards: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+def _get_intraday_df(symbol: str, start_dt: datetime, end_dt: datetime) -> Optional[pd.DataFrame]:
+    """Fetch intraday 1m data between start_dt (UTC) and end_dt (UTC) using yfinance."""
+    try:
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(start=start_dt, end=end_dt, interval='1m', actions=False)
+        if df is None or df.empty:
+            return None
+        # Ensure timezone-aware UTC index
+        idx = df.index
+        if idx.tz is None:
+            df.index = df.index.tz_localize(pytz.UTC)
+        else:
+            df.index = df.index.tz_convert(pytz.UTC)
+        return df
+    except Exception as e:
+        logger.warning(f"Intraday fetch failed for {symbol}: {e}")
+        return None
+
+
+def _session_ohlc_from_df(df: pd.DataFrame, session_start_dt: datetime, session_end_dt: datetime) -> Optional[Dict]:
+    """Compute OHLC and volume from df (UTC indexed) between session_start_dt and session_end_dt (UTC)."""
+    try:
+        mask = (df.index >= session_start_dt) & (df.index < session_end_dt)
+        part = df.loc[mask]
+        if part.empty:
+            return None
+        return {
+            'open': float(part['Open'].iloc[0]),
+            'high': float(part['High'].max()),
+            'low': float(part['Low'].min()),
+            'close': float(part['Close'].iloc[-1]),
+            'volume': int(part['Volume'].sum()) if 'Volume' in part.columns else None
+        }
+    except Exception as e:
+        logger.debug(f"Session OHLC calc failed: {e}")
+        return None
+
+
+def _pip_size_for_symbol(symbol: str) -> Optional[float]:
+    # Basic heuristic: FX pairs with =X or / or contain common FX tickers
+    s = symbol.upper()
+    if 'JPY' in s:
+        return 0.01
+    if any(x in s for x in ['USD', 'EUR', 'GBP', 'AUD', 'NZD', 'CHF']):
+        return 0.0001
+    return None
+
+
+@ict_trading_bp.route('/lookback')
+def ict_lookback():
+    """Lookback view: last N days per symbol with daily OHLC, ranges (points/pips), session OHLCs and selected-time window stats.
+
+    Query params:
+      symbols: comma-separated (default: ES=F,NQ=F,GC=F)
+      days: int (default 10)
+      provider: optional (not used yet)
+      time: optional HH:MM (EST) to inspect a specific time of day
+      window: optional minutes around time (default 10)
+    """
+    try:
+        symbols = request.args.get('symbols', 'ES=F,NQ=F,GC=F').split(',')
+        days = int(request.args.get('days', 10))
+        time_str = request.args.get('time')  # e.g., '09:35'
+        window_min = int(request.args.get('window', 10))
+
+        # session definitions in US/Eastern
+        sessions = {
+            'asian_range': ('00:00', '02:00'),
+            'london_killzone': ('02:00', '05:00'),
+            'london_open': ('08:00', '08:30'),
+            'ny_killzone': ('07:00', '10:00'),
+            'ny_open': ('09:30', '10:00'),
+            'power_3': ('14:00', '16:00'),
+            'london_close': ('16:00', '17:00')
+        }
+
+        eastern = pytz.timezone('US/Eastern')
+
+        end_date = datetime.now(tz=pytz.UTC)
+        start_date = end_date - timedelta(days=days + 3)
+
+        result: Dict[str, List[Dict]] = {}
+
+        # Prepare list of dates (local dates in US/Eastern)
+        dates = []
+        cur = end_date.astimezone(eastern).date()
+        while len(dates) < days:
+            dates.append(cur)
+            cur = cur - timedelta(days=1)
+        dates = sorted(dates)
+
+        # Fetch intraday data once per symbol covering full window
+        for raw_sym in symbols:
+            sym = raw_sym.strip()
+            # yfinance expects start/end naive datetimes or tz-aware; use UTC
+            intraday_df = _get_intraday_df(sym, start_date - timedelta(days=1), end_date + timedelta(days=1))
+
+            days_list = []
+            for d in dates:
+                # build UTC start/end for that trading day (00:00 to 23:59 ET)
+                day_start_et = eastern.localize(datetime(d.year, d.month, d.day, 0, 0))
+                day_end_et = eastern.localize(datetime(d.year, d.month, d.day, 23, 59, 59))
+                day_start_utc = day_start_et.astimezone(pytz.UTC)
+                day_end_utc = day_end_et.astimezone(pytz.UTC)
+
+                daily_info = {'date': d.isoformat(), 'symbol': sym}
+
+                # Daily OHLC from intraday df or fallback to analyze_daily_profile
+                if intraday_df is not None:
+                    mask = (intraday_df.index >= day_start_utc) & (intraday_df.index <= day_end_utc)
+                    day_df = intraday_df.loc[mask]
+                    if not day_df.empty:
+                        daily_info['daily_open'] = float(day_df['Open'].iloc[0])
+                        daily_info['daily_high'] = float(day_df['High'].max())
+                        daily_info['daily_low'] = float(day_df['Low'].min())
+                        daily_info['daily_close'] = float(day_df['Close'].iloc[-1])
+                        daily_info['daily_volume'] = int(day_df['Volume'].sum()) if 'Volume' in day_df.columns else None
+                    else:
+                        # fallback to analyzer
+                        analysis = ict_analyzer.analyze_daily_profile(sym, datetime(d.year, d.month, d.day))
+                        if 'error' in analysis:
+                            continue
+                        daily_info['daily_open'] = analysis.get('daily_open')
+                        daily_info['daily_high'] = analysis.get('daily_high')
+                        daily_info['daily_low'] = analysis.get('daily_low')
+                        daily_info['daily_close'] = analysis.get('daily_close')
+                        daily_info['daily_volume'] = None
+                else:
+                    analysis = ict_analyzer.analyze_daily_profile(sym, datetime(d.year, d.month, d.day))
+                    if 'error' in analysis:
+                        continue
+                    daily_info['daily_open'] = analysis.get('daily_open')
+                    daily_info['daily_high'] = analysis.get('daily_high')
+                    daily_info['daily_low'] = analysis.get('daily_low')
+                    daily_info['daily_close'] = analysis.get('daily_close')
+                    daily_info['daily_volume'] = None
+
+                # Range in points
+                try:
+                    daily_info['range_points'] = round(daily_info['daily_high'] - daily_info['daily_low'], 6)
+                except Exception:
+                    daily_info['range_points'] = None
+
+                # Range in pips if FX
+                pip = _pip_size_for_symbol(sym)
+                if pip and daily_info.get('range_points') is not None:
+                    daily_info['range_pips'] = int(round(daily_info['range_points'] / pip))
+                else:
+                    daily_info['range_pips'] = None
+
+                # Sessions
+                sess_map = {}
+                for sname, (st, en) in sessions.items():
+                    # session start/end in ET
+                    sh, sm = map(int, st.split(':'))
+                    eh, em = map(int, en.split(':'))
+                    s_start_et = eastern.localize(datetime(d.year, d.month, d.day, sh, sm))
+                    s_end_et = eastern.localize(datetime(d.year, d.month, d.day, eh, em))
+                    # handle overnight sessions where end < start (e.g., Asia 00:00-02:00)
+                    if s_end_et <= s_start_et:
+                        s_end_et = s_end_et + timedelta(days=1)
+                    s_start_utc = s_start_et.astimezone(pytz.UTC)
+                    s_end_utc = s_end_et.astimezone(pytz.UTC)
+
+                    if intraday_df is not None:
+                        ohlc = _session_ohlc_from_df(intraday_df, s_start_utc, s_end_utc)
+                        sess_map[sname] = ohlc
+                    else:
+                        sess_map[sname] = None
+
+                daily_info['sessions'] = sess_map
+
+                # Selected time stats
+                if time_str:
+                    th, tm = map(int, time_str.split(':'))
+                    sel_start_et = eastern.localize(datetime(d.year, d.month, d.day, th, tm)) - timedelta(minutes=window_min // 2)
+                    sel_end_et = eastern.localize(datetime(d.year, d.month, d.day, th, tm)) + timedelta(minutes=window_min // 2)
+                    sel_start_utc = sel_start_et.astimezone(pytz.UTC)
+                    sel_end_utc = sel_end_et.astimezone(pytz.UTC)
+                    if intraday_df is not None:
+                        sel = _session_ohlc_from_df(intraday_df, sel_start_utc, sel_end_utc)
+                        daily_info['selected_time'] = sel
+                    else:
+                        daily_info['selected_time'] = None
+
+                days_list.append(daily_info)
+
+            result[sym] = days_list
+
+        # Render HTML results for lookback
+        return render_template('ict_lookback_results.html', data=result)
+
+    except Exception as e:
+        logger.exception(f"Error in ict_lookback: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
 
 @ict_trading_bp.route('/journal/add', methods=['POST'])
 def add_trade_journal():
