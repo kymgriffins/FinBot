@@ -75,7 +75,15 @@ def create_app(environment: str = None):
     # Register middleware
     register_middleware(app)
 
-    logger.info(f"🚀 FinBot v2.0.0 started in {env} mode")
+    # Initialize database
+    try:
+        from src.database import init_database
+        init_database()
+        logger.info("[OK] Database initialized successfully")
+    except Exception as e:
+        logger.error(f"[ERROR] Database initialization failed: {e}")
+
+    logger.info(f"[STARTUP] Gr8 Agent v2.0.0 started in {env} mode")
     return app
 
 def register_error_handlers(app):
@@ -144,30 +152,46 @@ def register_blueprints(app, logger):
         # Utility routes
         from src.routes.comparison_routes import comparison_bp
         app.register_blueprint(comparison_bp, url_prefix='/api/comparison')
-        logger.info("✅ Comparison routes registered")
+        logger.info("[OK] Comparison routes registered")
 
         from src.routes.daily import daily_bp
         app.register_blueprint(daily_bp, url_prefix='/api/daily')
-        logger.info("✅ Daily analysis routes registered")
+        logger.info("[OK] Daily analysis routes registered")
+
+        # ========== ENHANCED CRUD ROUTES ==========
+        try:
+            from src.routes.enhanced_crud import enhanced_crud_bp
+            app.register_blueprint(enhanced_crud_bp, url_prefix='/api/v2')
+            logger.info("[OK] Enhanced CRUD routes registered")
+        except ImportError as e:
+            logger.warning(f"[WARN] Enhanced CRUD routes not available: {e}")
+
+        # ========== DATA VALIDATION ROUTES ==========
+        try:
+            from src.routes.data_validation import data_validation_bp
+            app.register_blueprint(data_validation_bp, url_prefix='/api/validation')
+            logger.info("[OK] Data validation routes registered")
+        except ImportError as e:
+            logger.warning(f"[WARN] Data validation routes not available: {e}")
 
         # ========== ICT TRADING ROUTES ==========
         try:
             from src.routes.ict_routes import ict_trading_bp
             app.register_blueprint(ict_trading_bp, url_prefix='/api/ict')
-            logger.info("✅ ICT Trading routes registered")
+            logger.info("[OK] ICT Trading routes registered")
         except ImportError as e:
-            logger.warning(f"⚠️ ICT Trading routes not available: {e}")
+            logger.warning(f"[WARN] ICT Trading routes not available: {e}")
 
         # Optional routes (may not exist)
         try:
             from src.routes.telegram import telegram_bp
             app.register_blueprint(telegram_bp, url_prefix='/api/telegram')
-            logger.info("✅ Telegram routes registered")
+            logger.info("[OK] Telegram routes registered")
         except ImportError:
-            logger.warning("⚠️ Telegram routes not available")
+            logger.warning("[WARN] Telegram routes not available")
 
     except ImportError as e:
-        logger.error(f"❌ Failed to import routes: {e}")
+        logger.error(f"[ERROR] Failed to import routes: {e}")
         raise
 
 def register_middleware(app):
